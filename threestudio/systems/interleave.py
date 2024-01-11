@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
+from omegaconf import OmegaConf
 import torch
 
 import threestudio
