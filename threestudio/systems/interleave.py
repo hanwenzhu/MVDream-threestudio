@@ -32,12 +32,12 @@ class InterleaveSystem(MVDreamSystem):
             "max_step_percent": 0.98,
         })
         # i.e. self.cfg.loss in `Magic3d`
-        self.deep_floyd_loss_cfg = {
+        self.deep_floyd_loss_cfg = OmegaConf.create({
             "lambda_sds": 1.,
             "lambda_orient": [0, 10., 1000., 5000],
             "lambda_sparsity": 1.,
             "lambda_opaque": 0.,
-        }
+        })
 
     def on_load_checkpoint(self, checkpoint):
         for k in list(checkpoint['state_dict'].keys()):
