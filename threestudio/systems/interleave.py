@@ -59,9 +59,10 @@ class InterleaveSystem(MVDreamSystem):
 
     def training_step(self, batch, batch_idx):
         # original loss (sd-xl)
-        loss = super().training_step(batch, batch_idx)["loss"]
+        original_loss = super().training_step(batch, batch_idx)["loss"]
         
         # deepfloyd IF loss
+        deep_floyd_loss = 0.0
         out = self(batch)
         prompt_utils = self.deep_floyd_prompt_processor()
         guidance_out = self.deep_floyd_guidance(
@@ -71,7 +72,7 @@ class InterleaveSystem(MVDreamSystem):
         for name, value in guidance_out.items():
             self.log(f"train/deep_floyd_{name}", value)
             if name.startswith("loss_"):
-                loss += value * self.C(self.deep_floyd_loss_cfg[name.replace("loss_", "lambda_")])
+                deep_floyd_loss += value * self.C(self.deep_floyd_loss_cfg[name.replace("loss_", "lambda_")])
 
         # only consider loss as in magic3d coarse
         # if not self.cfg.refinement:
@@ -87,16 +88,16 @@ class InterleaveSystem(MVDreamSystem):
         #         * dot(out["normal"], out["t_dirs"]).clamp_min(0.0) ** 2
         #     ).sum() / (out["opacity"] > 0).sum()
         #     self.log("train/deep_floyd_loss_orient", loss_orient)
-        #     loss += loss_orient * self.C(self.deep_floyd_loss_cfg["lambda_orient"])
+        #     deep_floyd_loss += loss_orient * self.C(self.deep_floyd_loss_cfg["lambda_orient"])
 
         loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
         self.log("train/deep_floyd_loss_sparsity", loss_sparsity)
-        loss += loss_sparsity * self.C(self.deep_floyd_loss_cfg["lambda_sparsity"])
+        deep_floyd_loss += loss_sparsity * self.C(self.deep_floyd_loss_cfg["lambda_sparsity"])
 
         opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
         loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
         self.log("train/deep_floyd_loss_opaque", loss_opaque)
-        loss += loss_opaque * self.C(self.deep_floyd_loss_cfg["lambda_opaque"])
+        deep_floyd_loss += loss_opaque * self.C(self.deep_floyd_loss_cfg["lambda_opaque"])
         # else:
         #     loss_normal_consistency = out["mesh"].normal_consistency()
         #     self.log("train/loss_normal_consistency", loss_normal_consistency)
@@ -107,6 +108,7 @@ class InterleaveSystem(MVDreamSystem):
         for name, value in self.deep_floyd_loss_cfg.items():
             self.log(f"train_params/deep_floyd_loss_cfg_{name}", self.C(value))
 
+        loss = original_loss + self.C(self.cfg.loss["lambda_if"]) * deep_floyd_loss
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
