@@ -91,5 +91,6 @@ class InterleaveSystem(MVDreamSystem):
         for name, value in self.deep_floyd_loss_cfg.items():
             self.log(f"train_params/deep_floyd_loss_cfg_{name}", self.C(value))
 
-        loss = original_loss + self.C(self.cfg.loss["lambda_if"]) * deep_floyd_loss
+        lambda_if = self.C(self.cfg.loss["lambda_if"])
+        loss = (1 - lambda_if) * original_loss + lambda_if * deep_floyd_loss
         return {"loss": loss}
