@@ -11,5 +11,5 @@ from . import (
     textmesh,
     zero123,
     mvdream,
-    interleave,
+    mvdream_with_magic3d,
 )

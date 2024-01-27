@@ -11,9 +11,9 @@ from threestudio.utils.ops import binary_cross_entropy, dot
 from threestudio.utils.typing import *
 
 
-@threestudio.register("interleave-system")
-class InterleaveSystem(MVDreamSystem):
-    """Interleaves IF guidance and prompt processor systems to MVDream"""
+@threestudio.register("mvdream-with-magic3d")
+class MVDreamWithMagic3DSystem(MVDreamSystem):
+    """Sums gradient updates from MVDream and Magic3D"""
 
     def configure(self) -> None:
         # set up geometry, material, background, renderer
