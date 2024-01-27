@@ -3,10 +3,10 @@ tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
 
-data_type: "random-camera-datamodule" # originally: random-multiview-camera-datamodule
+data_type: "random-multiview-camera-datamodule"
 data:
-  batch_size: [1,1] # originally: 8, 4
-  # n_view: 4
+  batch_size: [8,4]
+  n_view: 4
   # 0-4999: 64x64, >=5000: 256x256
   width: [64, 256]
   height: [64, 256]
@@ -17,7 +17,7 @@ data:
   camera_perturb: 0.
   center_perturb: 0.
   up_perturb: 0.
-  # n_val_views: 4
+  n_val_views: 4
   eval_camera_distance: 3.0
   eval_fovy_deg: 40.
 
