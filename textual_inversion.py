@@ -40,7 +40,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import AutoModel, AutoTokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
 
 import diffusers
 from diffusers import (
@@ -632,14 +632,15 @@ def main():
             ).repo_id
 
     # Load tokenizer
+    tokenizer_class = T5Tokenizer if args.deepfloyd else CLIPTokenizer
     if args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name)
+        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name)
     elif args.pretrained_model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
+        tokenizer = tokenizer_class.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
 
     # Load scheduler and models
     noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
-    text_encoder = AutoModel.from_pretrained(
+    text_encoder = (T5EncoderModel if args.deepfloyd else CLIPTextModel).from_pretrained(
         args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
     )
     if not args.deepfloyd:
