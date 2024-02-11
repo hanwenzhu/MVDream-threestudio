@@ -887,7 +887,7 @@ def main():
                     latents = F.interpolate(
                         batch["pixel_values"].to(dtype=weight_dtype),  # in range [-1, 1]
                         (64, 64), mode="bilinear", align_corners=False
-                    )
+                    )  # (B, 3, 64, 64)
                 else:
                     latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
@@ -909,7 +909,7 @@ def main():
                 # Predict the noise residual
                 noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
                 if args.deepfloyd:
-                    noise_pred_text, noise_pred_uncond = noise_pred.chunk(2)
+                    noise_pred_text, noise_pred_uncond = noise_pred.chunk(2, dim=1)
                 else:
                     noise_pred_text = noise_pred
 
@@ -921,7 +921,7 @@ def main():
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
-                loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                loss = F.mse_loss(noise_pred_text.float(), target.float(), reduction="mean")
 
                 accelerator.backward(loss)
 
