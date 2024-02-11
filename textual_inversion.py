@@ -40,7 +40,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
+from transformers import CLIPTextModel, CLIPTokenizer
 
 import diffusers
 from diffusers import (
@@ -50,6 +50,7 @@ from diffusers import (
     DPMSolverMultistepScheduler,
     StableDiffusionPipeline,
     UNet2DConditionModel,
+    IFPipeline,
 )
 from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version, is_wandb_available
@@ -631,25 +632,38 @@ def main():
                 repo_id=args.hub_model_id or Path(args.output_dir).name, exist_ok=True, token=args.hub_token
             ).repo_id
 
-    # Load tokenizer
-    tokenizer_class = T5Tokenizer if args.deepfloyd else CLIPTokenizer
-    if args.tokenizer_name:
-        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name)
-    elif args.pretrained_model_name_or_path:
-        tokenizer = tokenizer_class.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
+    if args.deepfloyd:
+        pipe = IFPipeline.from_pretrained(
+            args.pretrained_model_name_or_path,
+            safety_checker=None,
+            watermarker=None,
+            feature_extractor=None,
+            requires_safety_checker=False,
+            variant=args.variant,
+            # torch_dtype=?weights_dtype?,
+        )
+        tokenizer = pipe.tokenizer
+        noise_scheduler = pipe.scheduler
+        text_encoder = pipe.text_encoder
+        unet = pipe.unet
+    else:
+        # Load tokenizer
+        if args.tokenizer_name:
+            tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
+        elif args.pretrained_model_name_or_path:
+            tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
 
-    # Load scheduler and models
-    noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
-    text_encoder = (T5EncoderModel if args.deepfloyd else CLIPTextModel).from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
-    )
-    if not args.deepfloyd:
+        # Load scheduler and models
+        noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+        text_encoder = CLIPTextModel.from_pretrained(
+            args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
+        )
         vae = AutoencoderKL.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
         )
-    unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
-    )
+        unet = UNet2DConditionModel.from_pretrained(
+            args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+        )
 
     # Add the placeholder token in tokenizer
     placeholder_tokens = [args.placeholder_token]
