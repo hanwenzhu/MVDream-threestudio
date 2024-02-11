@@ -698,7 +698,6 @@ def main():
         # Freeze everything else
         text_encoder.encoder.block.requires_grad_(False)
         text_encoder.encoder.final_layer_norm.requires_grad_(False)
-        text_encoder.encoder.embeddings.position_embedding.requires_grad_(False)
     else:
         text_encoder.text_model.encoder.requires_grad_(False)
         text_encoder.text_model.final_layer_norm.requires_grad_(False)
