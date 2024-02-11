@@ -693,9 +693,16 @@ def main():
         vae.requires_grad_(False)
     unet.requires_grad_(False)
     # Freeze all parameters except for the token embeddings in text encoder
-    text_encoder.text_model.encoder.requires_grad_(False)
-    text_encoder.text_model.final_layer_norm.requires_grad_(False)
-    text_encoder.text_model.embeddings.position_embedding.requires_grad_(False)
+    if args.deepfloyd:
+        # embedding weights: text_encoder.encoder.embed_tokens.weight
+        # Freeze everything else
+        text_encoder.encoder.block.requires_grad_(False)
+        text_encoder.encoder.final_layer_norm.requires_grad_(False)
+        text_encoder.encoder.embeddings.position_embedding.requires_grad_(False)
+    else:
+        text_encoder.text_model.encoder.requires_grad_(False)
+        text_encoder.text_model.final_layer_norm.requires_grad_(False)
+        text_encoder.text_model.embeddings.position_embedding.requires_grad_(False)
 
     if args.gradient_checkpointing:
         # Keep unet in train mode if we are using gradient checkpointing to save memory.
