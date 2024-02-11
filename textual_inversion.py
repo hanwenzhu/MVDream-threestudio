@@ -29,7 +29,7 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, cpu_offload
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from huggingface_hub import create_repo, upload_folder
@@ -433,9 +433,9 @@ def parse_args():
         help="If specified save the checkpoint not in `safetensors` format, but in original PyTorch format instead.",
     )
     parser.add_argument(
-        "--enable_sequential_cpu_offload",
+        "--enable_cpu_offload",
         action="store_true",
-        help="Enables sequential CPU offloading (to be tested)"
+        help="Enables CPU offloading (to be tested)"
     )
 
     args = parser.parse_args()
@@ -815,9 +815,9 @@ def main():
         weight_dtype = torch.bfloat16
 
     # Move vae and unet to device and cast to weight_dtype
-    if args.deepfloyd and args.enable_sequential_cpu_offload:
-        pipe.enable_sequential_cpu_offload(device=accelerator.device)
+    if args.deepfloyd and args.enable_cpu_offload:
         unet.to(weight_dtype)
+        cpu_offload(unet, execution_device=accelerator.device, offload_buffers=True)
     else:
         unet.to(accelerator.device, dtype=weight_dtype)
     if not args.deepfloyd:
