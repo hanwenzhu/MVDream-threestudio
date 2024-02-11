@@ -907,7 +907,11 @@ def main():
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0].to(dtype=weight_dtype)
 
                 # Predict the noise residual
-                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                if args.deepfloyd:
+                    noise_pred_text, noise_pred_uncond = noise_pred.chunk(2)
+                else:
+                    noise_pred_text = noise_pred
 
                 # Get the target for loss depending on the prediction type
                 if noise_scheduler.config.prediction_type == "epsilon":
