@@ -647,8 +647,6 @@ def main():
             variant=args.variant,
             # torch_dtype=?weights_dtype?,
         )
-        if args.enable_sequential_cpu_offload:
-            pipe.enable_sequential_cpu_offload(device=accelerator.device)
         tokenizer = pipe.tokenizer
         noise_scheduler = pipe.scheduler
         text_encoder = pipe.text_encoder
@@ -818,6 +816,7 @@ def main():
 
     # Move vae and unet to device and cast to weight_dtype
     if args.deepfloyd and args.enable_sequential_cpu_offload:
+        pipe.enable_sequential_cpu_offload(device=accelerator.device)
         unet.to(weight_dtype)
     else:
         unet.to(accelerator.device, dtype=weight_dtype)
