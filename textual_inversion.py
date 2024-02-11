@@ -883,7 +883,11 @@ def main():
             with accelerator.accumulate(text_encoder):
                 # Convert images to latent space
                 if args.deepfloyd:
-                    latents = batch["pixel_values"].to(dtype=weight_dtype)
+                    # c/f deep_floyd_guidance.py#L143, resize to diffusion input size
+                    latents = F.interpolate(
+                        batch["pixel_values"].to(dtype=weight_dtype),  # in range [-1, 1]
+                        (64, 64), mode="bilinear", align_corners=False
+                    )
                 else:
                     latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
