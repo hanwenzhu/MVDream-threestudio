@@ -432,6 +432,11 @@ def parse_args():
         action="store_true",
         help="If specified save the checkpoint not in `safetensors` format, but in original PyTorch format instead.",
     )
+    parser.add_argument(
+        "--enable_sequential_cpu_offload",
+        action="store_true",
+        help="Enables sequential CPU offloading (to be tested)"
+    )
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -642,6 +647,8 @@ def main():
             variant=args.variant,
             # torch_dtype=?weights_dtype?,
         )
+        if args.enable_sequential_cpu_offload:
+            pipe.enable_sequential_cpu_offload(device=accelerator.device)
         tokenizer = pipe.tokenizer
         noise_scheduler = pipe.scheduler
         text_encoder = pipe.text_encoder
@@ -810,7 +817,10 @@ def main():
         weight_dtype = torch.bfloat16
 
     # Move vae and unet to device and cast to weight_dtype
-    unet.to(accelerator.device, dtype=weight_dtype)
+    if args.deepfloyd and args.enable_sequential_cpu_offload:
+        unet.to(weight_dtype)
+    else:
+        unet.to(accelerator.device, dtype=weight_dtype)
     if not args.deepfloyd:
         vae.to(accelerator.device, dtype=weight_dtype)
 
@@ -909,7 +919,8 @@ def main():
                 # Predict the noise residual
                 noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
                 if args.deepfloyd:
-                    noise_pred_text, noise_pred_uncond = noise_pred.chunk(2, dim=1)
+                    noise_pred_text, predicted_variance = noise_pred.split(3, dim=1)
+                    # TODO
                 else:
                     noise_pred_text = noise_pred
 
