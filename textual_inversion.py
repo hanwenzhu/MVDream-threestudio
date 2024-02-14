@@ -1018,7 +1018,8 @@ def main():
                                     shutil.rmtree(removing_checkpoint)
 
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                        accelerator.save_state(save_path)
+                        # Current accelerator bug: safetensors cannot save tied weights correctly
+                        accelerator.save_state(save_path, safe_serialization=False)
                         logger.info(f"Saved state to {save_path}")
 
                     if args.validation_prompt is not None and global_step % args.validation_steps == 0:
