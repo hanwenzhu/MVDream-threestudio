@@ -432,6 +432,10 @@ def parse_args():
         action="store_true",
         help="If specified save the checkpoint not in `safetensors` format, but in original PyTorch format instead.",
     )
+    # Copied from realfusion
+    parser.add_argument(
+        "--use_augmentations", action="store_true", help="Whether or not to use heavy image augmentations."
+    )
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -510,6 +514,7 @@ class TextualInversionDataset(Dataset):
         set="train",
         placeholder_token="*",
         center_crop=False,
+        use_augmentations=False,
     ):
         self.data_root = data_root
         self.tokenizer = tokenizer
@@ -536,6 +541,29 @@ class TextualInversionDataset(Dataset):
 
         self.templates = imagenet_style_templates_small if learnable_property == "style" else imagenet_templates_small
         self.flip_transform = transforms.RandomHorizontalFlip(p=self.flip_p)
+
+        # Copied from realfusion
+        self.use_augmentations = use_augmentations
+        if self.use_augmentations:
+            # This is unnecessarily convoluted because I previously used the albumentations library, but
+            # I wanted to remove that dependency. In torchvision, there is no good way of randomly rotating
+            # and then cropping into the rotation by the correct amount such that there is no padding. But 
+            # this is a hack that works ok for that case.
+            self.aug_transform = transforms.Compose([
+                transforms.Resize(int(self.size * 5/4)), 
+                transforms.CenterCrop(int(self.size * 5/4)),
+                transforms.RandomApply([
+                    transforms.RandomRotation(degrees=10, fill=255),
+                    transforms.CenterCrop(int(self.size * 5/6)),
+                    transforms.Resize(self.size),
+                ], p=0.75),
+                transforms.RandomResizedCrop(self.size, scale=(0.85, 1.15)),
+                transforms.RandomApply([transforms.ColorJitter(0.04, 0.04, 0.04, 0.04)], p=0.75),
+                transforms.RandomGrayscale(p=0.10),
+                transforms.RandomApply([transforms.GaussianBlur(5, (0.1, 2))], p=0.10),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(), 
+            ])
 
     def __len__(self):
         return self._length
@@ -573,11 +601,16 @@ class TextualInversionDataset(Dataset):
             img = img[(h - crop) // 2 : (h + crop) // 2, (w - crop) // 2 : (w + crop) // 2]
 
         image = Image.fromarray(img)
-        image = image.resize((self.size, self.size), resample=self.interpolation)
 
-        image = self.flip_transform(image)
-        image = np.array(image).astype(np.uint8)
-        image = (image / 127.5 - 1.0).astype(np.float32)
+        # copied from realfusion
+        if self.use_augmentations:
+            image = self.aug_transform(image)
+        else:
+            image = image.resize((self.size, self.size), resample=self.interpolation)
+            image = self.flip_transform(image)
+            image = np.array(image).astype(np.uint8)
+            image = (image / 127.5 - 1.0).astype(np.float32)
+            image = torch.from_numpy(image).permute(2, 0, 1)
 
         example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
         return example
@@ -766,6 +799,7 @@ def main():
         learnable_property=args.learnable_property,
         center_crop=args.center_crop,
         set="train",
+        use_augmentations=args.use_augmentations,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
