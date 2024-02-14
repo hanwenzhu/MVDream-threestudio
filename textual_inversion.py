@@ -612,7 +612,7 @@ class TextualInversionDataset(Dataset):
             image = (image / 127.5 - 1.0).astype(np.float32)
             image = torch.from_numpy(image).permute(2, 0, 1)
 
-        example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
+        example["pixel_values"] = image
         return example
 
 
