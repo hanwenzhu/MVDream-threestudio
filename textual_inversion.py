@@ -29,7 +29,7 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 import transformers
-from accelerate import Accelerator, cpu_offload
+from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from huggingface_hub import create_repo, upload_folder
@@ -432,11 +432,6 @@ def parse_args():
         action="store_true",
         help="If specified save the checkpoint not in `safetensors` format, but in original PyTorch format instead.",
     )
-    parser.add_argument(
-        "--enable_cpu_offload",
-        action="store_true",
-        help="Enables CPU offloading (to be tested)"
-    )
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -815,11 +810,7 @@ def main():
         weight_dtype = torch.bfloat16
 
     # Move vae and unet to device and cast to weight_dtype
-    if args.deepfloyd and args.enable_cpu_offload:
-        unet.to(weight_dtype)
-        cpu_offload(unet, execution_device=accelerator.device, offload_buffers=True)
-    else:
-        unet.to(accelerator.device, dtype=weight_dtype)
+    unet.to(accelerator.device, dtype=weight_dtype)
     if not args.deepfloyd:
         vae.to(accelerator.device, dtype=weight_dtype)
 
@@ -834,6 +825,10 @@ def main():
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
         accelerator.init_trackers("textual_inversion", config=vars(args))
+
+    # DeepFloyd stage I only takes 64x64 inputs
+    if args.deepfloyd and args.resolution != 64:
+        logger.warn(f"DeepFloyd IF uses images of resolution 64; got --resolution={args.resolution}")
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -893,10 +888,7 @@ def main():
                 # Convert images to latent space
                 if args.deepfloyd:
                     # c/f deep_floyd_guidance.py#L143, resize to diffusion input size
-                    latents = F.interpolate(
-                        batch["pixel_values"].to(dtype=weight_dtype),  # in range [-1, 1]
-                        (64, 64), mode="bilinear", align_corners=False
-                    )  # (B, 3, 64, 64)
+                    latents = batch["pixel_values"].to(dtype=weight_dtype),  # in range [-1, 1], (B, 3, 64, 64)
                 else:
                     latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
