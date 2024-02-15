@@ -436,6 +436,9 @@ def parse_args():
     parser.add_argument(
         "--use_augmentations", action="store_true", help="Whether or not to use heavy image augmentations."
     )
+    parser.add_argument(
+        "--max_grad_norm", type=float, default=1.0, help="Maximum gradient norm to clip to."
+    )
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -965,7 +968,11 @@ def main():
 
                 accelerator.backward(loss)
 
-                grad_norm = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.grad.detach().norm(2).item()
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(text_encoder.get_input_embeddings().parameters(), args.max_grad_norm)
+                    grad_norm = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.grad.detach().norm(2).item()
+                else:
+                    grad_norm = None
 
                 optimizer.step()
                 lr_scheduler.step()
