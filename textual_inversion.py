@@ -130,7 +130,9 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         variant=args.variant,
         torch_dtype=weight_dtype,
     )
-    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+    # Scheduler setting for DeepFloyd
+    scheduler_cls = DDPMScheduler if args.deepfloyd else DPMSolverMultistepScheduler
+    pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
 
@@ -682,6 +684,7 @@ def main():
         noise_scheduler = pipe.scheduler
         text_encoder = pipe.text_encoder
         unet = pipe.unet
+        vae = None
     else:
         # Load tokenizer
         if args.tokenizer_name:
