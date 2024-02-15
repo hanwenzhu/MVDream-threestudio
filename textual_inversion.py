@@ -944,8 +944,12 @@ def main():
                 # Predict the noise residual
                 noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
                 if args.deepfloyd:
+                    # Here the predicted variance is not used for training, instead using a
+                    # simplified MSE objective of noise prediction, as if
+                    # e.g. noise_scheduler.variance_type == "fixed_small".
+                    # It may be worth investigating if this has any impacts.
+                    # See also huggingface/diffusers#3307.
                     noise_pred_text, predicted_variance = noise_pred.split(3, dim=1)
-                    # TODO
                 else:
                     noise_pred_text = noise_pred
 
