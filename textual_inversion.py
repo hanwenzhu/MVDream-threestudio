@@ -741,7 +741,7 @@ def main():
     unet.requires_grad_(False)
     # Freeze all parameters except for the token embeddings in text encoder
     if args.deepfloyd:
-        # embedding weights: text_encoder.encoder.embed_tokens.weight
+        # embedding weights: text_encoder.encoder.embed_tokens (tied to text_encoder.shared)
         # Freeze everything else
         text_encoder.encoder.block.requires_grad_(False)
         text_encoder.encoder.final_layer_norm.requires_grad_(False)
@@ -965,6 +965,8 @@ def main():
 
                 accelerator.backward(loss)
 
+                grad_norm = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.grad.detach().norm(2).item()
+
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -1031,7 +1033,7 @@ def main():
                             text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch
                         )
 
-            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "grad": grad_norm}
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
