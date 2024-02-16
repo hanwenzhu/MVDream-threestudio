@@ -973,9 +973,7 @@ def main():
 
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(text_encoder.get_input_embeddings().parameters(), args.max_grad_norm)
-                    grad_norm = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.grad.detach().norm(2).item()
-                else:
-                    grad_norm = 0.0
+                    grad_norm = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.grad.detach()[placeholder_token_ids].norm(2).item()
 
                 optimizer.step()
                 lr_scheduler.step()
@@ -1043,7 +1041,9 @@ def main():
                             text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch
                         )
 
-            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "gradnorm": grad_norm}
+            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            if accelerator.sync_gradients:
+                logs["grad_norm"] = grad_norm
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
