@@ -32,7 +32,7 @@ import transformers
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
-from huggingface_hub import create_repo, upload_folder
+from huggingface_hub import create_repo, model_info, upload_folder
 
 # TODO: remove and import from diffusers.utils when the new version of diffusers is released
 from packaging import version
@@ -40,7 +40,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import AutoTokenizer, PretrainedConfig
 
 import diffusers
 from diffusers import (
@@ -50,7 +50,6 @@ from diffusers import (
     DPMSolverMultistepScheduler,
     StableDiffusionPipeline,
     UNet2DConditionModel,
-    IFPipeline,
 )
 from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version, is_wandb_available
@@ -119,16 +118,17 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         f" {args.validation_prompt}."
     )
     # create pipeline (note: unet and vae are loaded again in float32)
+    vae_kwarg = {"vae": vae} if vae is not None else {}
     pipeline = DiffusionPipeline.from_pretrained(
         args.pretrained_model_name_or_path,
         text_encoder=accelerator.unwrap_model(text_encoder),
         tokenizer=tokenizer,
         unet=unet,
-        vae=vae,
         safety_checker=None,
         revision=args.revision,
         variant=args.variant,
         torch_dtype=weight_dtype,
+        **vae_kwarg,
     )
     # Scheduler setting for DeepFloyd
     scheduler_cls = DDPMScheduler if args.deepfloyd else DPMSolverMultistepScheduler
@@ -175,6 +175,31 @@ def save_progress(text_encoder, placeholder_token_ids, accelerator, args, save_p
         safetensors.torch.save_file(learned_embeds_dict, save_path, metadata={"format": "pt"})
     else:
         torch.save(learned_embeds_dict, save_path)
+
+
+# From train_dreambooth.py
+def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
+    text_encoder_config = PretrainedConfig.from_pretrained(
+        pretrained_model_name_or_path,
+        subfolder="text_encoder",
+        revision=revision,
+    )
+    model_class = text_encoder_config.architectures[0]
+
+    if model_class == "CLIPTextModel":
+        from transformers import CLIPTextModel
+
+        return CLIPTextModel
+    elif model_class == "RobertaSeriesModelWithTransformation":
+        from diffusers.pipelines.alt_diffusion.modeling_roberta_series import RobertaSeriesModelWithTransformation
+
+        return RobertaSeriesModelWithTransformation
+    elif model_class == "T5EncoderModel":
+        from transformers import T5EncoderModel
+
+        return T5EncoderModel
+    else:
+        raise ValueError(f"{model_class} is not supported.")
 
 
 def parse_args():
@@ -621,6 +646,17 @@ class TextualInversionDataset(Dataset):
         return example
 
 
+# From train_dreambooth.py
+def model_has_vae(args):
+    config_file_name = os.path.join("vae", AutoencoderKL.config_name)
+    if os.path.isdir(args.pretrained_model_name_or_path):
+        config_file_name = os.path.join(args.pretrained_model_name_or_path, config_file_name)
+        return os.path.isfile(config_file_name)
+    else:
+        files_in_repo = model_info(args.pretrained_model_name_or_path, revision=args.revision).siblings
+        return any(file.rfilename == config_file_name for file in files_in_repo)
+
+
 def main():
     args = parse_args()
     if args.report_to == "wandb" and args.hub_token is not None:
@@ -670,39 +706,37 @@ def main():
                 repo_id=args.hub_model_id or Path(args.output_dir).name, exist_ok=True, token=args.hub_token
             ).repo_id
 
-    if args.deepfloyd:
-        pipe = IFPipeline.from_pretrained(
+    # From train_dreambooth.py
+    # Load the tokenizer
+    if args.tokenizer_name:
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, revision=args.revision, use_fast=False)
+    elif args.pretrained_model_name_or_path:
+        tokenizer = AutoTokenizer.from_pretrained(
             args.pretrained_model_name_or_path,
-            safety_checker=None,
-            watermarker=None,
-            feature_extractor=None,
-            requires_safety_checker=False,
-            variant=args.variant,
-            # torch_dtype=?weights_dtype?,
+            subfolder="tokenizer",
+            revision=args.revision,
+            use_fast=False,
         )
-        tokenizer = pipe.tokenizer
-        noise_scheduler = pipe.scheduler
-        text_encoder = pipe.text_encoder
-        unet = pipe.unet
-        vae = None
-    else:
-        # Load tokenizer
-        if args.tokenizer_name:
-            tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
-        elif args.pretrained_model_name_or_path:
-            tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
 
-        # Load scheduler and models
-        noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
-        text_encoder = CLIPTextModel.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
-        )
+    # import correct text encoder class
+    text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, args.revision)
+
+    # Load scheduler and models
+    noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+    text_encoder = text_encoder_cls.from_pretrained(
+        args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
+    )
+
+    if model_has_vae(args):
         vae = AutoencoderKL.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
         )
-        unet = UNet2DConditionModel.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
-        )
+    else:
+        vae = None
+
+    unet = UNet2DConditionModel.from_pretrained(
+        args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+    )
 
     # Add the placeholder token in tokenizer
     placeholder_tokens = [args.placeholder_token]
@@ -742,7 +776,7 @@ def main():
             token_embeds[token_id] = token_embeds[initializer_token_id].clone()
 
     # Freeze vae and unet
-    if not args.deepfloyd:
+    if vae is not None:
         vae.requires_grad_(False)
     unet.requires_grad_(False)
     # Freeze all parameters except for the token embeddings in text encoder
@@ -851,7 +885,7 @@ def main():
 
     # Move vae and unet to device and cast to weight_dtype
     unet.to(accelerator.device, dtype=weight_dtype)
-    if not args.deepfloyd:
+    if vae is not None:
         vae.to(accelerator.device, dtype=weight_dtype)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
@@ -865,10 +899,6 @@ def main():
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
         accelerator.init_trackers("textual_inversion", config=vars(args))
-
-    # DeepFloyd stage I only takes 64x64 inputs
-    if args.deepfloyd and args.resolution != 64:
-        logger.warn(f"DeepFloyd IF uses images of resolution 64; got --resolution={args.resolution}")
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -926,12 +956,12 @@ def main():
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(text_encoder):
                 # Convert images to latent space
-                if args.deepfloyd:
-                    # c/f deep_floyd_guidance.py#L143, resize to diffusion input size
-                    latents = batch["pixel_values"].to(dtype=weight_dtype)  # in range [-1, 1], (B, 3, 64, 64)
-                else:
+                if vae is not None:
                     latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
+                else:
+                    # c/f deep_floyd_guidance.py#L143, resize to diffusion input size
+                    latents = batch["pixel_values"].to(dtype=weight_dtype)  # in range [-1, 1], (B, 3, 64, 64)
 
                 # Sample noise that we'll add to the latents
                 noise = torch.randn_like(latents)
@@ -948,16 +978,15 @@ def main():
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0].to(dtype=weight_dtype)
 
                 # Predict the noise residual
-                noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
-                if args.deepfloyd:
-                    # Here the predicted variance is not used for training, instead using a
+                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                if model_pred.shape[1] == 6:
+                    # Channel dimension RGBRGB means it is (noise_prediction, predicted_variance).
+                    # Here the predicted variance is not used for training; instead we use a
                     # simplified MSE objective of noise prediction, as if
                     # e.g. noise_scheduler.variance_type == "fixed_small".
                     # It may be worth investigating if this has any impacts.
-                    # See also huggingface/diffusers#3307.
-                    noise_pred_text, predicted_variance = noise_pred.split(3, dim=1)
-                else:
-                    noise_pred_text = noise_pred
+                    # See also huggingface/diffusers#3307, and train_dreambooth.py which does the same.
+                    model_pred, _ = torch.chunk(model_pred, 2, dim=1)
 
                 # Get the target for loss depending on the prediction type
                 if noise_scheduler.config.prediction_type == "epsilon":
@@ -967,7 +996,7 @@ def main():
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
-                loss = F.mse_loss(noise_pred_text.float(), target.float(), reduction="mean")
+                loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
                 accelerator.backward(loss)
 
