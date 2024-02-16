@@ -124,7 +124,6 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         text_encoder=accelerator.unwrap_model(text_encoder),
         tokenizer=tokenizer,
         unet=unet,
-        safety_checker=None,
         revision=args.revision,
         variant=args.variant,
         torch_dtype=weight_dtype,
