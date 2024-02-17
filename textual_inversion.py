@@ -112,40 +112,65 @@ These are textual inversion adaption weights for {base_model}. You can find some
         f.write(yaml + model_card)
 
 
-def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch):
+def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch, mvdream_model):
     logger.info(
         f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
         f" {args.validation_prompt}."
     )
-    # create pipeline (note: unet and vae are loaded again in float32)
-    vae_kwarg = {"vae": vae} if vae is not None else {}
-    pipeline = DiffusionPipeline.from_pretrained(
-        args.pretrained_model_name_or_path,
-        text_encoder=accelerator.unwrap_model(text_encoder),
-        tokenizer=tokenizer,
-        unet=unet,
-        safety_checker=None,
-        revision=args.revision,
-        variant=args.variant,
-        torch_dtype=weight_dtype,
-        **vae_kwarg,
-    )
-    # Scheduler setting for DeepFloyd
-    scheduler_cls = DDPMScheduler if args.deepfloyd else DPMSolverMultistepScheduler
-    pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
-    pipeline = pipeline.to(accelerator.device)
-    pipeline.set_progress_bar_config(disable=True)
 
-    # run inference
-    generator = None if args.seed is None else torch.Generator(device=accelerator.device).manual_seed(args.seed)
-    images = []
-    for _ in range(args.num_validation_images):
-        # torch.autocast causes (known) bug that output images are black (nan)
-        # It was used here to support mixed precision training between text_encoder and unet, which we don't use here.
-        # See huggingface/diffusers#2568 as well as comment at docs/diffusers/optimization/fp16.
-        # with torch.autocast("cuda"):
-        image = pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
-        images.append(image)
+    if mvdream_model is not None:
+        # From bytedance/MVDream/scripts/t2i.py
+        from mvdream.ldm.models.diffusion.ddim import DDIMSampler
+        
+        input_ids = tokenizer(args.validation_prompt, padding="max_length", truncation=True, max_length=tokenizer.model_max_length, return_tensors="pt").input_ids
+        encoder_hidden_states = text_encoder(input_ids)[0].to(dtype=weight_dtype)
+        unconditional_hidden_states = mvdream_model.get_learned_conditioning([""]).to(encoder_hidden_states)
+        sampler = DDIMSampler(mvdream_model)
+        context = {"context": encoder_hidden_states}
+        unconditional_context = {"context": unconditional_hidden_states}
+        
+        if args.seed is not None:
+            logging.warning("args.seed not supported for MVDream validation")
+        images = []
+        for _ in range(args.num_validation_images):
+            samples_ddim, _ = sampler.sample(
+                S=20, conditioning=context, batch_size=args.num_validation_images, shape=[4, 32, 32], verbose=False,
+                unconditional_guidance_scale=7.5, unconditional_conditioning=unconditional_context, eta=0., x_T=None)
+            image = mvdream_model.decode_first_stage(samples_ddim)[0]
+            images.append(image)
+
+    else:
+        # create pipeline (note: unet and vae are loaded again in float32)
+        vae_kwarg = {"vae": vae} if vae is not None else {}
+        pipeline = DiffusionPipeline.from_pretrained(
+            args.pretrained_model_name_or_path,
+            text_encoder=accelerator.unwrap_model(text_encoder),
+            tokenizer=tokenizer,
+            unet=unet,
+            safety_checker=None,
+            revision=args.revision,
+            variant=args.variant,
+            torch_dtype=weight_dtype,
+            **vae_kwarg,
+        )
+        # Scheduler setting for DeepFloyd
+        scheduler_cls = DDPMScheduler if args.deepfloyd else DPMSolverMultistepScheduler
+        pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
+        pipeline = pipeline.to(accelerator.device)
+        pipeline.set_progress_bar_config(disable=True)
+
+        # run inference
+        generator = None if args.seed is None else torch.Generator(device=accelerator.device).manual_seed(args.seed)
+        images = []
+        for _ in range(args.num_validation_images):
+            # torch.autocast causes (known) bug that output images are black (nan)
+            # It was used here to support mixed precision training between text_encoder and unet, which we don't use here.
+            # See huggingface/diffusers#2568 as well as comment at docs/diffusers/optimization/fp16.
+            # with torch.autocast("cuda"):
+            image = pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
+            images.append(image)
+
+        del pipeline
 
     for tracker in accelerator.trackers:
         if tracker.name == "tensorboard":
@@ -160,7 +185,6 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
                 }
             )
 
-    del pipeline
     torch.cuda.empty_cache()
     return images
 
@@ -232,9 +256,10 @@ def parse_args():
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
-        "--deepfloyd",
-        action="store_true",
-        help="Whether the model is an IF model."
+        "--deepfloyd", action="store_true", help="Whether the model is a DeepFloyd IF model."
+    )
+    parser.add_argument(
+        "--mvdream", action="store_true", help="Whether the model is MVDream (using sd-v2.1-base-4view)."
     )
     parser.add_argument(
         "--revision",
@@ -254,6 +279,13 @@ def parse_args():
         type=str,
         default=None,
         help="Pretrained tokenizer name or path if not the same as model_name",
+    )
+    parser.add_argument(
+        "--tokenizer_max_length",
+        type=int,
+        default=None,
+        required=False,
+        help="The maximum length of the tokenizer. If not set, will default to the tokenizer's max length.",
     )
     parser.add_argument(
         "--train_data_dir", type=str, default=None, required=True, help="A folder containing the training data."
@@ -548,6 +580,7 @@ class TextualInversionDataset(Dataset):
         placeholder_token="*",
         center_crop=False,
         use_augmentations=False,
+        tokenizer_max_length=None,
     ):
         self.data_root = data_root
         self.tokenizer = tokenizer
@@ -597,6 +630,8 @@ class TextualInversionDataset(Dataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(), 
             ])
+        
+        self.tokenizer_max_length = tokenizer_max_length
 
     def __len__(self):
         return self._length
@@ -615,7 +650,7 @@ class TextualInversionDataset(Dataset):
             text,
             padding="max_length",
             truncation=True,
-            max_length=self.tokenizer.model_max_length,
+            max_length=self.tokenizer.model_max_length if self.tokenizer_max_length is None else self.tokenizer_max_length,
             return_tensors="pt",
         ).input_ids[0]
 
@@ -709,37 +744,41 @@ def main():
                 repo_id=args.hub_model_id or Path(args.output_dir).name, exist_ok=True, token=args.hub_token
             ).repo_id
 
-    # From train_dreambooth.py
-    # Load the tokenizer
-    if args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, revision=args.revision, use_fast=False)
-    elif args.pretrained_model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(
-            args.pretrained_model_name_or_path,
-            subfolder="tokenizer",
-            revision=args.revision,
-            use_fast=False,
-        )
-
-    # import correct text encoder class
-    text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, args.revision)
-
-    # Load scheduler and models
-    noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
-    text_encoder = text_encoder_cls.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant
-    )
-
-    if model_has_vae(args):
-        vae = AutoencoderKL.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant
-        )
+    if args.mvdream:
+        from mvdream.model_zoo import build_model
+        from transformers import CLIPTextModel
+        mvdream_model = build_model("sd-v2.1-base-4view")
+        # Uses tokenizer and text encoder `laion/CLIP-ViT-H-14-laion2B-s32B-b79K` (same as stable diffusion)
+        #   (NB: there is also a tokenizer/encoder module in mvdream_model.cond_stage_model;
+        #    we don't use it because they work differently though having the same weights)
+        tokenizer = AutoTokenizer.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="tokenizer", revision=args.revision, variant=args.variant, use_fast=False)
+        text_encoder = CLIPTextModel.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="text_encoder", revision=args.revision, variant=args.variant)
+        # There is no independent noise scheduler; the noise scheduling configuration is stored directly in mvdream_model
+        vae = mvdream_model.first_stage_model
+        unet = mvdream_model.model
     else:
-        vae = None
-
-    unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
-    )
+        mvdream_model = None
+        # Some model initialization code from train_dreambooth.py
+        # Load the tokenizer
+        if args.tokenizer_name:
+            tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, revision=args.revision, use_fast=False)
+        elif args.pretrained_model_name_or_path:
+            tokenizer = AutoTokenizer.from_pretrained(
+                args.pretrained_model_name_or_path,
+                subfolder="tokenizer",
+                revision=args.revision,
+                use_fast=False,
+            )
+        # import correct text encoder class
+        text_encoder_cls = import_model_class_from_model_name_or_path(args.pretrained_model_name_or_path, args.revision)
+        # Load scheduler and models
+        noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+        text_encoder = text_encoder_cls.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision, variant=args.variant)
+        if model_has_vae(args):
+            vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision, variant=args.variant)
+        else:
+            vae = None
+        unet = UNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant)
 
     # Add the placeholder token in tokenizer
     placeholder_tokens = [args.placeholder_token]
@@ -843,6 +882,7 @@ def main():
         center_crop=args.center_crop,
         set="train",
         use_augmentations=args.use_augmentations,
+        tokenizer_max_length=args.tokenizer_max_length,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
@@ -960,7 +1000,10 @@ def main():
             with accelerator.accumulate(text_encoder):
                 # Convert images to latent space
                 pixel_values = batch["pixel_values"].to(dtype=weight_dtype)
-                if vae is not None:
+                if args.mvdream:
+                    latent_dist = mvdream_model.encode_first_stage(pixel_values)  # i.e. vae.encode(pixel_values)
+                    latents = mvdream_model.get_first_stage_encoding(latent_dist)  # i.e. latent_dist.sample() * mvdream.scale_factor
+                elif vae is not None:
                     latents = vae.encode(pixel_values).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
                 else:
@@ -970,12 +1013,16 @@ def main():
                 noise = torch.randn_like(latents)
                 bsz, channels, _, _ = latents.shape
                 # Sample a random timestep for each image
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
+                num_train_timesteps = mvdream_model.num_timesteps if args.mvdream else noise_scheduler.config.num_train_timesteps
+                timesteps = torch.randint(0, num_train_timesteps, (bsz,), device=latents.device)
                 timesteps = timesteps.long()
 
                 # Add noise to the latents according to the noise magnitude at each timestep
                 # (this is the forward diffusion process)
-                noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+                if args.mvdream:
+                    noisy_latents = mvdream_model.q_sample(latents, timesteps, noise)
+                else:
+                    noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
                 if unet.config.in_channels == channels * 2:
                     noisy_latents = torch.cat([noisy_latents, noisy_latents], dim=1)
@@ -984,9 +1031,16 @@ def main():
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0].to(dtype=weight_dtype)
 
                 # Predict the noise residual
-                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                if args.mvdream:
+                    context = {"context": encoder_hidden_states}
+                    if False: # TODO: incorporate camera information for 3D-rendered data?
+                        context.extend({"camera": ..., "num_frames": ...})
+                    model_pred = mvdream_model.apply_model(noisy_latents, timesteps, context)
+                else:
+                    model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                
                 if model_pred.shape[1] == channels * 2:
-                    # Channel dimension RGBRGB means it is (noise_prediction, predicted_variance).
+                    # Channel dimension RGBRGB means it is (noise_prediction, predicted_variance) as in DeepFloyd.
                     # Here the predicted variance is not used for training; instead we use a
                     # simplified MSE objective of noise prediction, as if
                     # e.g. noise_scheduler.variance_type == "fixed_small".
@@ -995,12 +1049,15 @@ def main():
                     model_pred, _ = torch.chunk(model_pred, 2, dim=1)
 
                 # Get the target for loss depending on the prediction type
-                if noise_scheduler.config.prediction_type == "epsilon":
+                if (args.mvdream and mvdream_model.parametrization == "eps") or noise_scheduler.config.prediction_type == "epsilon":
                     target = noise
+                elif args.mvdream and mvdream_model.parametrization == "v":
+                    target = mvdream_model.get_v(latents, noise, timesteps)
                 elif noise_scheduler.config.prediction_type == "v_prediction":
                     target = noise_scheduler.get_velocity(latents, noise, timesteps)
                 else:
-                    raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
+                    raise ValueError(
+                        f"Unknown prediction type {mvdream_model.parametrization if args.mvdream else noise_scheduler.config.prediction_type}")
 
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
@@ -1073,7 +1130,7 @@ def main():
 
                     if args.validation_prompt is not None and global_step % args.validation_steps == 0:
                         images = log_validation(
-                            text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch
+                            text_encoder, tokenizer, unet, vae, args, accelerator, weight_dtype, epoch, mvdream_model
                         )
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
