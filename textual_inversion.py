@@ -288,6 +288,12 @@ def parse_args():
         help="The maximum length of the tokenizer. If not set, will default to the tokenizer's max length.",
     )
     parser.add_argument(
+        "--text_encoder_use_attention_mask",
+        action="store_true",
+        required=False,
+        help="Whether to use attention mask for the text encoder",
+    )
+    parser.add_argument(
         "--train_data_dir", type=str, default=None, required=True, help="A folder containing the training data."
     )
     parser.add_argument(
@@ -646,13 +652,15 @@ class TextualInversionDataset(Dataset):
         placeholder_string = self.placeholder_token
         text = random.choice(self.templates).format(placeholder_string)
 
-        example["input_ids"] = self.tokenizer(
+        text_inputs = self.tokenizer(
             text,
             padding="max_length",
             truncation=True,
             max_length=self.tokenizer.model_max_length if self.tokenizer_max_length is None else self.tokenizer_max_length,
             return_tensors="pt",
-        ).input_ids[0]
+        )
+        example["input_ids"] = text_inputs.input_ids[0]
+        example["attention_mask"] = text_inputs.attention_mask[0]
 
         # default to score-sde preprocessing
         img = np.array(image).astype(np.uint8)
@@ -1028,7 +1036,8 @@ def main():
                     noisy_latents = torch.cat([noisy_latents, noisy_latents], dim=1)
 
                 # Get the text embedding for conditioning
-                encoder_hidden_states = text_encoder(batch["input_ids"])[0].to(dtype=weight_dtype)
+                attention_mask = batch["attention_mask"] if args.text_encoder_use_attention_mask else None
+                encoder_hidden_states = text_encoder(batch["input_ids"], attention_mask)[0].to(dtype=weight_dtype)
 
                 # Predict the noise residual
                 if args.mvdream:
