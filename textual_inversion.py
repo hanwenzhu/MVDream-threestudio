@@ -140,6 +140,9 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
     generator = None if args.seed is None else torch.Generator(device=accelerator.device).manual_seed(args.seed)
     images = []
     for _ in range(args.num_validation_images):
+        # torch.autocast causes (known) bug that output images are black (nan)
+        # It was used here to support mixed precision training between text_encoder and unet, which we don't use here.
+        # See huggingface/diffusers#2568 as well as comment at docs/diffusers/optimization/fp16.
         # with torch.autocast("cuda"):
         image = pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
         images.append(image)
@@ -956,16 +959,16 @@ def main():
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(text_encoder):
                 # Convert images to latent space
+                pixel_values = batch["pixel_values"].to(dtype=weight_dtype)
                 if vae is not None:
-                    latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample().detach()
+                    latents = vae.encode(pixel_values).latent_dist.sample().detach()
                     latents = latents * vae.config.scaling_factor
                 else:
-                    # c/f deep_floyd_guidance.py#L143, resize to diffusion input size
-                    latents = batch["pixel_values"].to(dtype=weight_dtype)  # in range [-1, 1], (B, 3, 64, 64)
+                    latents = pixel_values  # in range [-1, 1], (B, 3, 64, 64)
 
                 # Sample noise that we'll add to the latents
                 noise = torch.randn_like(latents)
-                bsz = latents.shape[0]
+                bsz, channels, _, _ = latents.shape
                 # Sample a random timestep for each image
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
                 timesteps = timesteps.long()
@@ -974,12 +977,15 @@ def main():
                 # (this is the forward diffusion process)
                 noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
+                if unet.config.in_channels == channels * 2:
+                    noisy_latents = torch.cat([noisy_latents, noisy_latents], dim=1)
+
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0].to(dtype=weight_dtype)
 
                 # Predict the noise residual
                 model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
-                if model_pred.shape[1] == 6:
+                if model_pred.shape[1] == channels * 2:
                     # Channel dimension RGBRGB means it is (noise_prediction, predicted_variance).
                     # Here the predicted variance is not used for training; instead we use a
                     # simplified MSE objective of noise prediction, as if
