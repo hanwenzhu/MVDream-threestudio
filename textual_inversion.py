@@ -1060,15 +1060,15 @@ def main():
                     model_pred, _ = torch.chunk(model_pred, 2, dim=1)
 
                 # Get the target for loss depending on the prediction type
-                if (args.mvdream and mvdream_model.parametrization == "eps") or noise_scheduler.config.prediction_type == "epsilon":
+                if (args.mvdream and mvdream_model.parameterization == "eps") or noise_scheduler.config.prediction_type == "epsilon":
                     target = noise
-                elif args.mvdream and mvdream_model.parametrization == "v":
+                elif args.mvdream and mvdream_model.parameterization == "v":
                     target = mvdream_model.get_v(latents, noise, timesteps)
                 elif noise_scheduler.config.prediction_type == "v_prediction":
                     target = noise_scheduler.get_velocity(latents, noise, timesteps)
                 else:
                     raise ValueError(
-                        f"Unknown prediction type {mvdream_model.parametrization if args.mvdream else noise_scheduler.config.prediction_type}")
+                        f"Unknown prediction type {mvdream_model.parameterization if args.mvdream else noise_scheduler.config.prediction_type}")
 
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
