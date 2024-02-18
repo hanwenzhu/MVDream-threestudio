@@ -935,9 +935,12 @@ def main():
         weight_dtype = torch.bfloat16
 
     # Move vae and unet to device and cast to weight_dtype
-    unet.to(accelerator.device, dtype=weight_dtype)
-    if vae is not None:
-        vae.to(accelerator.device, dtype=weight_dtype)
+    if args.mvdream:
+        mvdream_model.to(accelerator.device, dtype=weight_dtype)
+    else:
+        unet.to(accelerator.device, dtype=weight_dtype)
+        if vae is not None:
+            vae.to(accelerator.device, dtype=weight_dtype)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
