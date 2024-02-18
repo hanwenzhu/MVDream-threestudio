@@ -1034,9 +1034,8 @@ def main():
                     noisy_latents = mvdream_model.q_sample(latents, timesteps, noise)
                 else:
                     noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-
-                if unet.config.in_channels == channels * 2:
-                    noisy_latents = torch.cat([noisy_latents, noisy_latents], dim=1)
+                    if unet.config.in_channels == channels * 2:
+                        noisy_latents = torch.cat([noisy_latents, noisy_latents], dim=1)
 
                 # Get the text embedding for conditioning
                 attention_mask = batch["attention_mask"] if args.text_encoder_use_attention_mask else None
