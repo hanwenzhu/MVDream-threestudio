@@ -939,6 +939,8 @@ def main():
     # Move vae and unet to device and cast to weight_dtype
     if args.mvdream:
         mvdream_model.to(accelerator.device, dtype=weight_dtype)
+        # weird attribute mentioned in mvdream/ldm/models/diffusion/ddim.py#L29
+        mvdream_model.device = accelerator.device
     else:
         unet.to(accelerator.device, dtype=weight_dtype)
         if vae is not None:
