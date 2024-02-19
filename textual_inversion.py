@@ -136,7 +136,7 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         images = []
         for _ in range(args.num_validation_images):
             samples_ddim, _ = sampler.sample(
-                S=20, conditioning=context, batch_size=args.num_validation_images, shape=[4, 32, 32], verbose=False,
+                S=20, conditioning=context, batch_size=1, shape=[4, 32, 32], verbose=False,
                 unconditional_guidance_scale=7.5, unconditional_conditioning=unconditional_context, eta=0., x_T=None)
             image = mvdream_model.decode_first_stage(samples_ddim)[0]
             images.append(image)
