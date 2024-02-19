@@ -24,12 +24,12 @@ def load_textual_inversion(
     loader = TextualInversionLoaderMixin()
 
     # pretend to be a DiffusionPipeline
+    loader.tokenizer = tokenizer
+    loader.text_encoder = text_encoder
     loader.components = {}
 
     loader.load_textual_inversion(
         pretrained_model_name_or_path,
         token=token,
-        tokenizer=tokenizer,
-        text_encoder=text_encoder,
         **kwargs
     )
