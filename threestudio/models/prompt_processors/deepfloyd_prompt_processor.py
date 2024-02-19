@@ -28,6 +28,9 @@ class DeepFloydPromptProcessor(PromptProcessor):
     ### these functions are unused, kept for debugging ###
     def configure_text_encoder(self) -> None:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        self.tokenizer = T5Tokenizer.from_pretrained(
+            self.cfg.pretrained_model_name_or_path, subfolder="tokenizer", use_fast=False
+        )
         self.text_encoder = T5EncoderModel.from_pretrained(
             self.cfg.pretrained_model_name_or_path,
             subfolder="text_encoder",
@@ -37,6 +40,7 @@ class DeepFloydPromptProcessor(PromptProcessor):
         )  # FIXME: behavior of auto device map in multi-GPU training
         self.pipe = IFPipeline.from_pretrained(
             self.cfg.pretrained_model_name_or_path,
+            tokenizer=self.tokenizer,
             text_encoder=self.text_encoder,  # pass the previously instantiated 8bit text encoder
             unet=None,
         )
@@ -68,7 +72,7 @@ class DeepFloydPromptProcessor(PromptProcessor):
     def spawn_func(cfg, prompts, cache_dir):
         max_length = 77
         tokenizer = T5Tokenizer.from_pretrained(
-            cfg.pretrained_model_name_or_path, subfolder="tokenizer"
+            cfg.pretrained_model_name_or_path, subfolder="tokenizer", use_fast=False
         )
         text_encoder = T5EncoderModel.from_pretrained(
             cfg.pretrained_model_name_or_path,

@@ -25,7 +25,7 @@ class StableDiffusionPromptProcessor(PromptProcessor):
     ### these functions are unused, kept for debugging ###
     def configure_text_encoder(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.cfg.pretrained_model_name_or_path, subfolder="tokenizer"
+            self.cfg.pretrained_model_name_or_path, subfolder="tokenizer", use_fast=False
         )
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         self.text_encoder = CLIPTextModel.from_pretrained(
@@ -83,7 +83,7 @@ class StableDiffusionPromptProcessor(PromptProcessor):
     def spawn_func(cfg, prompts, cache_dir):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         tokenizer = AutoTokenizer.from_pretrained(
-            cfg.pretrained_model_name_or_path, subfolder="tokenizer"
+            cfg.pretrained_model_name_or_path, subfolder="tokenizer", use_fast=False
         )
         text_encoder = CLIPTextModel.from_pretrained(
             cfg.pretrained_model_name_or_path,
