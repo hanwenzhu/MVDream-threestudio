@@ -15,7 +15,7 @@ def load_textual_inversion(
 ):
     """Load Textual Inversion embeddings into `tokenizer` and `text_encoder`."""
 
-    threestudio.debug(f"Loading textual inversion embeddings from {pretrained_model_name_or_path}")
+    threestudio.info(f"Loading textual inversion embeddings from {pretrained_model_name_or_path}")
     
     # HACK: calling the `TextualInversionLoaderMixin::load_textual_inversion` method not from a pipeline.
     # This mixin class was intended to be inherited by a DiffusionPipeline class, but here it is used as a bare class.
