@@ -10,6 +10,7 @@ from transformers import T5EncoderModel, T5Tokenizer
 import threestudio
 from threestudio.models.prompt_processors.base import PromptProcessor, hash_prompt
 from threestudio.utils.misc import cleanup
+from threestudio.utils.textual_inversion import load_textual_inversion
 from threestudio.utils.typing import *
 
 
@@ -18,6 +19,9 @@ class DeepFloydPromptProcessor(PromptProcessor):
     @dataclass
     class Config(PromptProcessor.Config):
         pretrained_model_name_or_path: str = "DeepFloyd/IF-I-XL-v1.0"
+
+        # paths to learned embeddings for textual inversion
+        pretrained_model_name_or_path_textual_inversion: Optional[List[str]] = None
 
     cfg: Config
 
@@ -36,6 +40,14 @@ class DeepFloydPromptProcessor(PromptProcessor):
             text_encoder=self.text_encoder,  # pass the previously instantiated 8bit text encoder
             unet=None,
         )
+        
+        # load textual inversion
+        if self.cfg.pretrained_model_name_or_path_textual_inversion is not None:
+            load_textual_inversion(
+                self.cfg.pretrained_model_name_or_path_textual_inversion,
+                self.pipe.tokenizer,
+                self.text_encoder
+            )
 
     def destroy_text_encoder(self) -> None:
         del self.text_encoder
@@ -53,19 +65,28 @@ class DeepFloydPromptProcessor(PromptProcessor):
     ###
 
     @staticmethod
-    def spawn_func(pretrained_model_name_or_path, prompts, cache_dir):
+    def spawn_func(cfg, prompts, cache_dir):
         max_length = 77
         tokenizer = T5Tokenizer.from_pretrained(
-            pretrained_model_name_or_path, subfolder="tokenizer"
+            cfg.pretrained_model_name_or_path, subfolder="tokenizer"
         )
         text_encoder = T5EncoderModel.from_pretrained(
-            pretrained_model_name_or_path,
+            cfg.pretrained_model_name_or_path,
             subfolder="text_encoder",
             torch_dtype=torch.float16,  # suppress warning
             load_in_8bit=True,
             variant="8bit",
             device_map="auto",
         )
+        
+        # load textual inversion
+        if cfg.pretrained_model_name_or_path_textual_inversion is not None:
+            load_textual_inversion(
+                cfg.pretrained_model_name_or_path_textual_inversion,
+                tokenizer,
+                text_encoder
+            )
+
         with torch.no_grad():
             text_inputs = tokenizer(
                 prompts,
@@ -88,7 +109,7 @@ class DeepFloydPromptProcessor(PromptProcessor):
                 embedding,
                 os.path.join(
                     cache_dir,
-                    f"{hash_prompt(pretrained_model_name_or_path, prompt)}.pt",
+                    f"{hash_prompt(cfg.pretrained_model_name_or_path, prompt)}.pt",
                 ),
             )
 

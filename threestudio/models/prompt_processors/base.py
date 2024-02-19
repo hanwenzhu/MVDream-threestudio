@@ -335,8 +335,9 @@ class PromptProcessor(BaseObject):
         self.prepare_text_embeddings()
         self.load_text_embeddings()
 
+    # (hanwenzhu) I changed the signature to accept the whole `cfg` instead of `pretrained_model_name_or_path`
     @staticmethod
-    def spawn_func(pretrained_model_name_or_path, prompts, cache_dir):
+    def spawn_func(cfg, prompts, cache_dir):
         raise NotImplementedError
 
     @rank_zero_only
@@ -371,7 +372,7 @@ class PromptProcessor(BaseObject):
                 subprocess = ctx.Process(
                     target=self.spawn_func,
                     args=(
-                        self.cfg.pretrained_model_name_or_path,
+                        self.cfg,
                         prompts_to_process,
                         self._cache_dir,
                     ),
@@ -380,7 +381,7 @@ class PromptProcessor(BaseObject):
                 subprocess.join()
             else:
                 self.spawn_func(
-                    self.cfg.pretrained_model_name_or_path,
+                    self.cfg,
                     prompts_to_process,
                     self._cache_dir,
                 )

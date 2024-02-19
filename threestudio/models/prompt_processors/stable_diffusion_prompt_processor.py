@@ -9,6 +9,7 @@ from transformers import AutoTokenizer, CLIPTextModel
 import threestudio
 from threestudio.models.prompt_processors.base import PromptProcessor, hash_prompt
 from threestudio.utils.misc import cleanup
+from threestudio.utils.textual_inversion import load_textual_inversion
 from threestudio.utils.typing import *
 
 
@@ -16,7 +17,8 @@ from threestudio.utils.typing import *
 class StableDiffusionPromptProcessor(PromptProcessor):
     @dataclass
     class Config(PromptProcessor.Config):
-        pass
+        # paths to learned embeddings for textual inversion
+        pretrained_model_name_or_path_textual_inversion: Optional[List[str]] = None
 
     cfg: Config
 
@@ -32,6 +34,14 @@ class StableDiffusionPromptProcessor(PromptProcessor):
 
         for p in self.text_encoder.parameters():
             p.requires_grad_(False)
+        
+        # load textual inversion
+        if self.cfg.pretrained_model_name_or_path_textual_inversion is not None:
+            load_textual_inversion(
+                self.cfg.pretrained_model_name_or_path_textual_inversion,
+                self.tokenizer,
+                self.text_encoder
+            )
 
     def destroy_text_encoder(self) -> None:
         del self.tokenizer
@@ -70,16 +80,24 @@ class StableDiffusionPromptProcessor(PromptProcessor):
     ###
 
     @staticmethod
-    def spawn_func(pretrained_model_name_or_path, prompts, cache_dir):
+    def spawn_func(cfg, prompts, cache_dir):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name_or_path, subfolder="tokenizer"
+            cfg.pretrained_model_name_or_path, subfolder="tokenizer"
         )
         text_encoder = CLIPTextModel.from_pretrained(
-            pretrained_model_name_or_path,
+            cfg.pretrained_model_name_or_path,
             subfolder="text_encoder",
             device_map="auto",
         )
+        
+        # load textual inversion
+        if cfg.pretrained_model_name_or_path_textual_inversion is not None:
+            load_textual_inversion(
+                cfg.pretrained_model_name_or_path_textual_inversion,
+                tokenizer,
+                text_encoder
+            )
 
         with torch.no_grad():
             tokens = tokenizer(
@@ -95,7 +113,7 @@ class StableDiffusionPromptProcessor(PromptProcessor):
                 embedding,
                 os.path.join(
                     cache_dir,
-                    f"{hash_prompt(pretrained_model_name_or_path, prompt)}.pt",
+                    f"{hash_prompt(cfg.pretrained_model_name_or_path, prompt)}.pt",
                 ),
             )
 
