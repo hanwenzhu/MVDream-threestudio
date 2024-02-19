@@ -122,8 +122,10 @@ def log_validation(text_encoder, tokenizer, unet, vae, args, accelerator, weight
         # From bytedance/MVDream/scripts/t2i.py
         from mvdream.ldm.models.diffusion.ddim import DDIMSampler
         
-        input_ids = tokenizer(args.validation_prompt, padding="max_length", truncation=True, max_length=tokenizer.model_max_length, return_tensors="pt").input_ids
-        encoder_hidden_states = text_encoder(input_ids)[0].to(dtype=weight_dtype)
+        input_ids = tokenizer(
+            args.validation_prompt, padding="max_length", truncation=True, max_length=tokenizer.model_max_length, return_tensors="pt"
+        ).input_ids.to(accelerator.device)
+        encoder_hidden_states = text_encoder(input_ids)[0].to(dtype=weight_dtype, device=accelerator.device)
         unconditional_hidden_states = mvdream_model.get_learned_conditioning([""]).to(encoder_hidden_states)
         sampler = DDIMSampler(mvdream_model)
         context = {"context": encoder_hidden_states}
