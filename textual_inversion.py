@@ -649,10 +649,8 @@ class TextualInversionDataset(Dataset):
         image = Image.open(self.image_paths[i % self.num_images])
 
         # Make transparent background white
-        image.convert("RGBA")
         background = Image.new("RGBA", image.size, (255, 255, 255))
-        image = Image.alpha_composite(background, image)
-        image.convert("RGB")
+        image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
 
         placeholder_string = self.placeholder_token
         text = random.choice(self.templates).format(placeholder_string)
