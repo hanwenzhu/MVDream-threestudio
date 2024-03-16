@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, CLIPTextModel
 import threestudio
 from threestudio.models.prompt_processors.base import PromptProcessor, hash_prompt
 from threestudio.utils.misc import cleanup
-from threestudio.utils.textual_inversion import load_textual_inversion
+from threestudio.utils.textual_inversion import load_textual_inversion, maybe_convert_prompt
 from threestudio.utils.typing import *
 
 
@@ -98,6 +98,8 @@ class StableDiffusionPromptProcessor(PromptProcessor):
                 tokenizer,
                 text_encoder
             )
+            # Convert prompt for multi-vector
+            prompts = maybe_convert_prompt(prompts)
 
         with torch.no_grad():
             tokens = tokenizer(

@@ -38,3 +38,16 @@ def load_textual_inversion(
         token=token,
         **kwargs
     )
+
+def maybe_convert_prompt(
+    prompt: Union[str, List[str]],
+    tokenizer: nn.Module
+) -> Union[str, List[str]]:
+    # If prompt is an OmegaConf list config type, it is not registered as an instance of `list`
+    if OmegaConf.is_config(prompt):
+        prompt = OmegaConf.to_container(prompt)
+
+    # HACK: same as load_textual_inversion
+    loader = TextualInversionLoaderMixin()
+
+    return loader.maybe_convert_prompt(prompt, tokenizer)
