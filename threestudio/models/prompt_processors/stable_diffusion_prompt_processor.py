@@ -98,8 +98,8 @@ class StableDiffusionPromptProcessor(PromptProcessor):
                 tokenizer,
                 text_encoder
             )
-            # Convert prompt for multi-vector
-            prompts = maybe_convert_prompt(prompts)
+            # convert prompt for multi-vector
+            prompts = maybe_convert_prompt(prompts, tokenizer)
 
         with torch.no_grad():
             tokens = tokenizer(
