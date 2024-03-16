@@ -90,12 +90,11 @@ class DeepFloydPromptProcessor(PromptProcessor):
                 tokenizer,
                 text_encoder
             )
-            # convert prompt for multi-vector
-            prompts = maybe_convert_prompt(prompts, tokenizer)
 
         with torch.no_grad():
             text_inputs = tokenizer(
-                prompts,
+                # convert prompt in case of multi-vector textual inversion
+                maybe_convert_prompt(prompts, tokenizer),
                 padding="max_length",
                 max_length=max_length,
                 truncation=True,
