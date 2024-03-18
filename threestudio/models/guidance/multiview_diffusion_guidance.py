@@ -47,6 +47,10 @@ class MultiviewDiffusionGuidance(BaseModule):
         threestudio.info(f"Loading Multiview Diffusion ...")
 
         self.model = build_model(self.cfg.model_name, ckpt_path=self.cfg.ckpt_path)
+
+        del self.model.cond_stage_model
+        cleanup()
+
         for p in self.model.parameters():
             p.requires_grad_(False)
         
