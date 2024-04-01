@@ -11,5 +11,6 @@ from . import (
     textmesh,
     zero123,
     mvdream,
-    mvdream_with_magic3d,
+    mvdream_with_deepfloyd,
+    multi_mvdream_with_deepfloyd,
 )
