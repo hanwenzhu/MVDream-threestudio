@@ -507,6 +507,9 @@ def parse_args():
         "--use_augmentations", action="store_true", help="Whether or not to use heavy image augmentations."
     )
     parser.add_argument(
+        "--random_background", action="store_true", help="Use a random color (default white) as background to convert RGBA images to RGB."
+    )
+    parser.add_argument(
         "--max_grad_norm", type=float, default=1.0, help="Maximum gradient norm to clip to."
     )
 
@@ -589,6 +592,7 @@ class TextualInversionDataset(Dataset):
         center_crop=False,
         use_augmentations=False,
         tokenizer_max_length=None,
+        random_background=False,
     ):
         self.data_root = data_root
         self.tokenizer = tokenizer
@@ -641,6 +645,8 @@ class TextualInversionDataset(Dataset):
         
         self.tokenizer_max_length = tokenizer_max_length
 
+        self.random_background = random_background
+
     def __len__(self):
         return self._length
 
@@ -648,8 +654,12 @@ class TextualInversionDataset(Dataset):
         example = {}
         image = Image.open(self.image_paths[i % self.num_images])
 
-        # Make transparent background a random color
-        background_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        if self.random_background:
+            # Convert transparent background to a random color
+            background_color = tuple(random.randint(0, 255) for _ in range(3))
+        else:
+            # Convert transparent background to white
+            background_color = (255, 255, 255)
         background = Image.new("RGBA", image.size, background_color)
         image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
 
@@ -895,6 +905,7 @@ def main():
         set="train",
         use_augmentations=args.use_augmentations,
         tokenizer_max_length=args.tokenizer_max_length,
+        random_background=args.random_background,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
