@@ -8,9 +8,9 @@ import torch.nn.functional as F
 import threestudio
 from threestudio.models.geometry.base import (
     BaseGeometry,
-    ImplicitVolume,
     contract_to_unisphere,
 )
+from threestudio.models.geometry.implicit_volume import ImplicitVolume
 from threestudio.models.networks import get_encoding, get_mlp
 from threestudio.utils.ops import get_activation
 from threestudio.utils.typing import *
