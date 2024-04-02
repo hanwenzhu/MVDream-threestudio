@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 from omegaconf import OmegaConf
 import torch
+import torch.nn as nn
 
 import threestudio
 from threestudio.systems.mvdream import MVDreamSystem
@@ -49,7 +50,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
 
         # self.renderers: renderer for each of geometries
         # self.composed_renderer: renderer for self.geometry
-        self.renderers = [
+        self.renderers = nn.ModuleList([
             threestudio.find(self.cfg.renderer_type)(
                 self.cfg.renderer,
                 geometry=geometry,
@@ -57,7 +58,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
                 background=self.background,
             )
             for geometry in geometries
-        ]
+        ])
         self.renderer = threestudio.find(self.cfg.renderer_type)(
             self.cfg.renderer,
             geometry=self.geometry,
