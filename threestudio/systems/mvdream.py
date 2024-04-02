@@ -46,10 +46,13 @@ class MVDreamSystem(BaseLift3DSystem):
         return self.renderer(**batch)
 
     def training_step(self, batch, batch_idx):
-        out = self(batch)
+        return {"loss": self.get_loss(batch, self.renderer, self.guidance, self.prompt_utils)}
 
-        guidance_out = self.guidance(
-            out["comp_rgb"], self.prompt_utils, **batch
+    def get_loss(self, batch, renderer, guidance, prompt_utils) -> float:
+        out = renderer(**batch)
+
+        guidance_out = guidance(
+            out["comp_rgb"], prompt_utils, **batch
         )
 
         loss = 0.0

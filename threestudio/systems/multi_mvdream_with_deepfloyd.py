@@ -58,7 +58,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
             )
             for geometry in geometries
         ]
-        self.renderer = self.composed_renderer = threestudio.find(self.cfg.renderer_type)(
+        self.renderer = threestudio.find(self.cfg.renderer_type)(
             self.cfg.renderer,
             geometry=self.geometry,
             material=self.material,
@@ -101,9 +101,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         original_loss = 0.0
         # super().training_step uses self.renderer, self.guidance, self.prompt_utils
         for renderer, prompt_utils in zip(self.renderers, self.prompt_utils):
-            self.renderer = renderer
-            self.prompt_utils = prompt_utils
-            original_loss += super().training_step(batch, batch_idx)["loss"]
+            original_loss += self.get_loss(batch, renderer, self.guidance, prompt_utils)
         
         self.renderer = self.composed_renderer
 
