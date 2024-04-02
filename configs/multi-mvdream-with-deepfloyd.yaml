@@ -23,8 +23,8 @@ data:
 
 system_type: "multi-mvdream-with-deepfloyd"
 system:
-  prompts: [???]
   prompt: ???
+  prompts: []
 
   geometry_type: "implicit-volume"
   geometry:

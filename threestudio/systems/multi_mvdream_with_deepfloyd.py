@@ -22,7 +22,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
     @dataclass
     class Config(MVDreamSystem.Config):
         prompt: str = ""
-        prompts: List[str] = ""
+        prompts: List[str] = field(default_factory=lambda: [])
     
     cfg: Config
 
