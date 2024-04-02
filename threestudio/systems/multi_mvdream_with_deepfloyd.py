@@ -103,8 +103,6 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         # super().training_step uses self.renderer, self.guidance, self.prompt_utils
         for renderer, prompt_utils in zip(self.renderers, self.prompt_utils):
             original_loss += self.get_loss(batch, renderer, self.guidance, prompt_utils)
-        
-        self.renderer = self.composed_renderer
 
         # deepfloyd IF loss
         deep_floyd_loss = 0.0
