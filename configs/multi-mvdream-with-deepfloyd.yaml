@@ -98,12 +98,8 @@ system:
       betas: [0.9, 0.99]
       eps: 1.e-15
     params:
-      geometry.encoding:
+      geometry:
         lr: 0.01
-      geometry.density_network:
-        lr: 0.001
-      geometry.feature_network:
-        lr: 0.001
       background:
         lr: 0.001
 
