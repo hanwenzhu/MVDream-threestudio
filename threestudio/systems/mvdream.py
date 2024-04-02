@@ -102,7 +102,7 @@ class MVDreamSystem(BaseLift3DSystem):
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
 
-        return {"loss": loss}
+        return loss
 
     def validation_step(self, batch, batch_idx):
         out = self(batch)
