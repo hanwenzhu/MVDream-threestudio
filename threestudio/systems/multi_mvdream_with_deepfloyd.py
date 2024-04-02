@@ -21,8 +21,8 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
 
     @dataclass
     class Config(MVDreamSystem.Config):
-        prompt: str
-        prompts: List[str]
+        prompt: str = ""
+        prompts: List[str] = ""
     
     cfg: Config
 
