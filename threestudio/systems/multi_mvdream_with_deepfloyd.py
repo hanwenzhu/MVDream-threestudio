@@ -30,17 +30,16 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         if self.cfg.geometry_convert_from:
             raise NotImplementedError
 
-        # self.geometries: list of sub-objects
-        # self.composed_geometry: a MultiImplicitVolume of self.geometries
+        # self.geometry: a MultiImplicitVolume holding sub-geometries
         if self.cfg.geometry_type != "implicit-volume":
             raise NotImplementedError
-        self.geometries = [
+        geometries = [
             threestudio.find(self.cfg.geometry_type)(self.cfg.geometry)
             for _ in self.cfg.prompts
         ]
         self.geometry = self.composed_geometry = threestudio.find("multi-implicit-volume")(
             {},
-            geometries=self.geometries
+            geometries=geometries
         )
 
         self.material = threestudio.find(self.cfg.material_type)(self.cfg.material)
@@ -48,7 +47,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
             self.cfg.background
         )
 
-        # self.renderers: renderer for each of self.geometries
+        # self.renderers: renderer for each of geometries
         # self.composed_renderer: renderer for self.geometry
         self.renderers = [
             threestudio.find(self.cfg.renderer_type)(
@@ -57,7 +56,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
                 material=self.material,
                 background=self.background,
             )
-            for geometry in self.geometries
+            for geometry in geometries
         ]
         self.renderer = self.composed_renderer = threestudio.find(self.cfg.renderer_type)(
             self.cfg.renderer,

@@ -24,7 +24,7 @@ class MultiImplicitVolume(BaseGeometry):
         geometries: List[ImplicitVolume]
     ) -> None:
         super().configure()
-        self.geometries = geometries
+        self.geometries = nn.ModuleList(geometries)
 
     def forward(
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False
