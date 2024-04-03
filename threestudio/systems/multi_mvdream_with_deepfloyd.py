@@ -154,3 +154,9 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         lambda_if = self.C(self.cfg.loss["lambda_if"])
         loss = (1 - lambda_if) * original_loss + lambda_if * deep_floyd_loss
         return {"loss": loss}
+
+    def update_step(self, epoch: int, global_step: int, on_load_weights: bool = False):
+        # This is a temporary fix: self.renderers is an nn.ModuleList hence not registered
+        # as sub-Updateable modules
+        for renderer in self.renderers:
+            renderer.do_update_step(epoch, global_step, on_load_weights=on_load_weights)
