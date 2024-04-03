@@ -30,18 +30,18 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
     def configure(self) -> None:
         if self.cfg.geometry_convert_from:
             raise NotImplementedError
+        
+        if not self.prompts:
+            raise ValueError("Empty system.prompts")
 
         # self.geometry: a MultiImplicitVolume holding sub-geometries
         if self.cfg.geometry_type != "implicit-volume":
             raise NotImplementedError
-        geometries = [
+        self.geometries = nn.ModuleList([
             threestudio.find(self.cfg.geometry_type)(self.cfg.geometry)
             for _ in self.cfg.prompts
-        ]
-        self.geometry = self.composed_geometry = threestudio.find("multi-implicit-volume")(
-            {},
-            geometries=geometries
-        )
+        ])
+        self.geometry = threestudio.find("multi-implicit-volume")({}, geometries=self.geometries)
 
         self.material = threestudio.find(self.cfg.material_type)(self.cfg.material)
         self.background = threestudio.find(self.cfg.background_type)(
@@ -49,7 +49,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         )
 
         # self.renderers: renderer for each of geometries
-        # self.composed_renderer: renderer for self.geometry
+        # self.renderer: renderer for self.geometry
         self.renderers = nn.ModuleList([
             threestudio.find(self.cfg.renderer_type)(
                 self.cfg.renderer,
@@ -57,7 +57,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
                 material=self.material,
                 background=self.background,
             )
-            for geometry in geometries
+            for geometry in self.geometries
         ])
         self.renderer = threestudio.find(self.cfg.renderer_type)(
             self.cfg.renderer,
