@@ -31,7 +31,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         if self.cfg.geometry_convert_from:
             raise NotImplementedError
         
-        if not self.prompts:
+        if not self.cfg.prompts:
             raise ValueError("Empty system.prompts")
 
         # self.geometry: a MultiImplicitVolume holding sub-geometries
