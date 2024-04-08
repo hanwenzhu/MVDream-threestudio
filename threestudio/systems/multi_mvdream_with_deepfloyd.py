@@ -40,7 +40,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         # FIXME: geometries.update_step is not called
         # FIXME: hard-coded density_blob_center
         centers = [
-            [0.0, 0.0, 0.25]  # first object is slightly higher
+            [0.0, 0.0, 0.25],  # first object is slightly higher
             [0.0, 0.0, -0.25]  # second object is slightly lower
         ]
         self.geometries = nn.ModuleList([
