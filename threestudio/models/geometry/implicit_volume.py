@@ -24,6 +24,9 @@ class ImplicitVolume(BaseImplicitGeometry):
         n_feature_dims: int = 3
         density_activation: Optional[str] = "softplus"
         density_bias: Union[float, str] = "blob_magic3d"
+        density_blob_center: List[float] = field(
+            default_factory=lambda: [0., 0., 0.]
+        )
         density_blob_scale: float = 10.0
         density_blob_std: float = 0.5
         pos_encoding_config: dict = field(
@@ -73,6 +76,7 @@ class ImplicitVolume(BaseImplicitGeometry):
             self.normal_network = get_mlp(
                 self.encoding.n_output_dims, 3, self.cfg.mlp_network_config
             )
+        self.density_blob_center: Float[Tensor, "Di"] = torch.tensor(self.cfg.density_blob_center)
 
     def get_activated_density(
         self, points: Float[Tensor, "*N Di"], density: Float[Tensor, "*N 1"]
@@ -83,7 +87,7 @@ class ImplicitVolume(BaseImplicitGeometry):
             density_bias = (
                 self.cfg.density_blob_scale
                 * torch.exp(
-                    -0.5 * (points**2).sum(dim=-1) / self.cfg.density_blob_std**2
+                    -0.5 * ((points - self.density_blob_center)**2).sum(dim=-1) / self.cfg.density_blob_std**2
                 )[..., None]
             )
         elif self.cfg.density_bias == "blob_magic3d":
@@ -92,7 +96,7 @@ class ImplicitVolume(BaseImplicitGeometry):
                 self.cfg.density_blob_scale
                 * (
                     1
-                    - torch.sqrt((points**2).sum(dim=-1)) / self.cfg.density_blob_std
+                    - torch.sqrt(((points - self.density_blob_center)**2).sum(dim=-1)) / self.cfg.density_blob_std
                 )[..., None]
             )
         elif isinstance(self.cfg.density_bias, float):
