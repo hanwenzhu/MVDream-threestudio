@@ -44,17 +44,18 @@ class MultiImplicitVolume(BaseGeometry):
             "density": densities.sum(dim=0),
         }
 
+        # weights in (0, 1), equals sigmoid(unactivated densities)
+        # (reflects the way weights are calculated: nerfacc.render_weight_from_density)
+        weights = 1 - torch.exp(-densities)  # (#self.geometries, *N, 1)
+
         if "features" in geo_outs[0]:
             # Output weighted sum of features of each component geometry
             # (#self.geometries, *N, Nf)
             features = torch.stack([geo_out["features"] for geo_out in geo_outs], dim=0)
-            # weights in (0, 1), equals sigmoid(unactivated densities)
-            # (reflects the way weights are calculated: nerfacc.render_weight_from_density)
-            weights = 1 - torch.exp(-densities)  # (#self.geometries, *N, 1)
             output.update({"features": (features * weights).sum(dim=0) / weights.sum(dim=0)})
 
         # TODO this only works for two objects
-        output["renderer_out"] = {"intersection": densities.prod(dim=0).sum()}
+        output["intersection"] = weights.prod(dim=0).mean()
 
         return output
 

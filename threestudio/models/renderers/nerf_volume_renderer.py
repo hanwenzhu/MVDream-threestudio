@@ -251,8 +251,8 @@ class NeRFVolumeRenderer(VolumeRenderer):
                     }
                 )
 
-        if "renderer_out" in geo_out:
-            out.update(geo_out["renderer_out"])
+        if "intersection" in geo_out:
+            out["intersection"] = geo_out["intersection"]
 
         return out
 
