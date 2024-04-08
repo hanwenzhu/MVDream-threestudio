@@ -55,7 +55,7 @@ class MultiImplicitVolume(BaseGeometry):
             output.update({"features": (features * weights).sum(dim=0) / weights.sum(dim=0)})
 
         # TODO this only works for two objects
-        output["intersection"] = weights.prod(dim=0).mean()
+        output["intersection"] = weights.prod(dim=0)
 
         return output
 

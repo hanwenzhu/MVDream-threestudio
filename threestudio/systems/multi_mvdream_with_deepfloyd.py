@@ -160,7 +160,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         lambda_if = self.C(self.cfg.loss["lambda_if"])
         loss = (1 - lambda_if) * original_loss + lambda_if * deep_floyd_loss
 
-        loss_intersection = out["intersection"]
+        loss_intersection = out["intersection"].mean()
         self.log("train/loss_intersection", loss_intersection)
         loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
 
