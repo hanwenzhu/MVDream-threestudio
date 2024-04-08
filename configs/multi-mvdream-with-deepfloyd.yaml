@@ -87,6 +87,8 @@ system:
     # weight of IF in the loss
     # loss = (1 - lambda_if) * MVDream loss + lambda_if * IF loss
     lambda_if: 0.9
+    # weight of intersection between geometries in the loss
+    lambda_intersection: 10000.
     lambda_sds: 1.
     lambda_orient: 0.
     lambda_sparsity: 0.

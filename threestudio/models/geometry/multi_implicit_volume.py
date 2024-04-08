@@ -25,6 +25,8 @@ class MultiImplicitVolume(BaseGeometry):
     ) -> None:
         super().configure()
         self.geometries = geometries
+        if len(geometries) > 2:
+            threestudio.warn("MultiImplicitVolume geometries list longer than 2; not compatible with intersection logic (yet)")
 
     def forward(
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False
@@ -50,6 +52,9 @@ class MultiImplicitVolume(BaseGeometry):
             # (reflects the way weights are calculated: nerfacc.render_weight_from_density)
             weights = 1 - torch.exp(-densities)  # (#self.geometries, *N, 1)
             output.update({"features": (features * weights).sum(dim=0) / weights.sum(dim=0)})
+
+        # TODO this only works for two objects
+        output["renderer_out"] = {"intersection": densities.prod(dim=0)}
 
         return output
 

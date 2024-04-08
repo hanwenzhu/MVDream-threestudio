@@ -37,6 +37,7 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         # self.geometry: a MultiImplicitVolume holding sub-geometries
         if self.cfg.geometry_type != "implicit-volume":
             raise NotImplementedError
+        # FIXME: geometries.update_step is not called
         self.geometries = nn.ModuleList([
             threestudio.find(self.cfg.geometry_type)(self.cfg.geometry)
             for _ in self.cfg.prompts
@@ -153,10 +154,54 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
 
         lambda_if = self.C(self.cfg.loss["lambda_if"])
         loss = (1 - lambda_if) * original_loss + lambda_if * deep_floyd_loss
+
+        loss_intersection = out["intersection"]
+        self.log("train/loss_intersection", loss_intersection)
+        loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
+
         return {"loss": loss}
 
     def update_step(self, epoch: int, global_step: int, on_load_weights: bool = False):
-        # This is a temporary fix: self.renderers is an nn.ModuleList hence not registered
-        # as sub-Updateable modules
+        # HACK: temporary fix: self.renderers is an nn.ModuleList hence not registered
+        # as sub-Updateable modules. To fix this one should actually edit Updateable directly
         for renderer in self.renderers:
             renderer.do_update_step(epoch, global_step, on_load_weights=on_load_weights)
+
+    def validation_step(self, batch, batch_idx):
+        super().validation_step(batch, batch_idx)
+        for i, renderer in enumerate(self.renderers):
+            out = renderer(**batch)
+            self.save_image_grid(
+                f"it{self.true_global_step}-{batch['index'][0]}-{i}.png",
+                (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["comp_rgb"][0],
+                            "kwargs": {"data_format": "HWC"},
+                        },
+                    ]
+                    if "comp_rgb" in out
+                    else []
+                )
+                + (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["comp_normal"][0],
+                            "kwargs": {"data_format": "HWC", "data_range": (0, 1)},
+                        }
+                    ]
+                    if "comp_normal" in out
+                    else []
+                )
+                + [
+                    {
+                        "type": "grayscale",
+                        "img": out["opacity"][0, :, :, 0],
+                        "kwargs": {"cmap": None, "data_range": (0, 1)},
+                    },
+                ],
+                name=f"validation_step-{i}",
+                step=self.true_global_step,
+            )

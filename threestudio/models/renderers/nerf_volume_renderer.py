@@ -251,6 +251,9 @@ class NeRFVolumeRenderer(VolumeRenderer):
                     }
                 )
 
+        if "renderer_out" in geo_out:
+            out.update(geo_out["renderer_out"])
+
         return out
 
     def update_step(
