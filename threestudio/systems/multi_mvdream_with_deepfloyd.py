@@ -38,9 +38,14 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
         if self.cfg.geometry_type != "implicit-volume":
             raise NotImplementedError
         # FIXME: geometries.update_step is not called
+        # FIXME: hard-coded density_blob_center
+        centers = [
+            [0.0, 0.0, 0.25]  # first object is slightly higher
+            [0.0, 0.0, -0.25]  # second object is slightly lower
+        ]
         self.geometries = nn.ModuleList([
-            threestudio.find(self.cfg.geometry_type)(self.cfg.geometry)
-            for _ in self.cfg.prompts
+            threestudio.find(self.cfg.geometry_type)({**self.cfg.geometry, "density_blob_center": centers[i]})
+            for i, _ in enumerate(self.cfg.prompts)
         ])
         self.geometry = threestudio.find("multi-implicit-volume")({}, geometries=self.geometries)
 
