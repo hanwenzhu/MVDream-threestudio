@@ -108,8 +108,12 @@ class ImplicitVolume(BaseImplicitGeometry):
         return raw_density, density
 
     def forward(
-        self, points: Float[Tensor, "*N Di"], output_normal: bool = False
+        self, points: Float[Tensor, "*N Di"], output_normal: bool = False, add_center: bool = True
     ) -> Dict[str, Float[Tensor, "..."]]:
+        # TODO add_center default should be False?
+        if add_center:
+            points += torch.as_tensor(self.cfg.density_blob_center).to(points)
+
         grad_enabled = torch.is_grad_enabled()
 
         if output_normal and self.cfg.normal_type == "analytic":
@@ -196,7 +200,10 @@ class ImplicitVolume(BaseImplicitGeometry):
         torch.set_grad_enabled(grad_enabled)
         return output
 
-    def forward_density(self, points: Float[Tensor, "*N Di"]) -> Float[Tensor, "*N 1"]:
+    def forward_density(self, points: Float[Tensor, "*N Di"], add_center: bool = True) -> Float[Tensor, "*N 1"]:
+        if add_center:
+            points += torch.as_tensor(self.cfg.density_blob_center).to(points)
+
         points_unscaled = points
         points = contract_to_unisphere(points_unscaled, self.bbox, self.unbounded)
 

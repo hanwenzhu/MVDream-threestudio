@@ -35,7 +35,7 @@ class MultiImplicitVolume(BaseGeometry):
             raise NotImplementedError
 
         geo_outs = [
-            geometry(points, output_normal=output_normal) for geometry in self.geometries
+            geometry(points, output_normal=output_normal, add_center=False) for geometry in self.geometries
         ]
         # (#self.geometries, *N, 1)
         densities = torch.stack([geo_out["density"] for geo_out in geo_outs], dim=0)
@@ -60,7 +60,7 @@ class MultiImplicitVolume(BaseGeometry):
         return output
 
     def forward_density(self, points: Float[Tensor, "*N Di"]) -> Float[Tensor, "*N 1"]:
-        densities = [geometry.forward_density(points) for geometry in self.geometries]
+        densities = [geometry.forward_density(points, add_center=False) for geometry in self.geometries]
         return torch.stack(densities, dim=0).sum(dim=0)
 
     def forward_field(
