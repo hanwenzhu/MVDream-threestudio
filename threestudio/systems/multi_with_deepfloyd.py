@@ -80,7 +80,8 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
         )
 
         self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
-        self.guidance.requires_grad_(False)
+        if self.cfg.guidance_type == "multiview-diffusion-guidance":
+            self.guidance.requires_grad_(False)
         self.prompt_processors = [
             threestudio.find(self.cfg.prompt_processor_type)(
                 {**self.cfg.prompt_processor, "prompt": prompt}
@@ -90,18 +91,20 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
         self.prompt_utils = [prompt_processor() for prompt_processor in self.prompt_processors]
 
     def on_load_checkpoint(self, checkpoint):
-        for k in list(checkpoint['state_dict'].keys()):
-            if k.startswith("guidance."):
-                return
-        guidance_state_dict = {"guidance."+k : v for (k,v) in self.guidance.state_dict().items()}
-        checkpoint['state_dict'] = {**checkpoint['state_dict'], **guidance_state_dict}
-        return 
+        if self.cfg.guidance_type == "multiview-diffusion-guidance":
+            for k in list(checkpoint['state_dict'].keys()):
+                if k.startswith("guidance."):
+                    return
+            guidance_state_dict = {"guidance."+k : v for (k,v) in self.guidance.state_dict().items()}
+            checkpoint['state_dict'] = {**checkpoint['state_dict'], **guidance_state_dict}
+            return
 
     def on_save_checkpoint(self, checkpoint):
-        for k in list(checkpoint['state_dict'].keys()):
-            if k.startswith("guidance."):
-                checkpoint['state_dict'].pop(k)
-        return 
+        if self.cfg.guidance_type == "multiview-diffusion-guidance":
+            for k in list(checkpoint['state_dict'].keys()):
+                if k.startswith("guidance."):
+                    checkpoint['state_dict'].pop(k)
+            return
 
     def on_fit_start(self) -> None:
         super().on_fit_start()
