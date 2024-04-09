@@ -64,7 +64,6 @@ system:
   prompt_processor:
     pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
     prompt: ""  # not used (for now)
-    negative_prompt: "ugly, bad anatomy, blurry, pixelated obscure, unnatural colors, poor lighting, dull, and unclear, cropped, lowres, low quality, artifacts, duplicate, morbid, mutilated, poorly drawn face, deformed, dehydrated, bad proportions"
     front_threshold: 30.
     back_threshold: 30.
 
@@ -100,8 +99,12 @@ system:
       betas: [0.9, 0.99]
       eps: 1.e-15
     params:
-      geometry:
+      geometry.encoding:
         lr: 0.01
+      geometry.density_network:
+        lr: 0.001
+      geometry.feature_network:
+        lr: 0.001
       background:
         lr: 0.001
 
