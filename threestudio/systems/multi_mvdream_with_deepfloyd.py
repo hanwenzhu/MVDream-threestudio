@@ -43,8 +43,15 @@ class MultiMVDreamWithDeepFloydSystem(MVDreamSystem):
             [0.0, 0.0, 0.25],  # first object is slightly higher
             [0.0, 0.0, -0.25]  # second object is slightly lower
         ]
+        stds = [0.25, 0.5]
         self.geometries = nn.ModuleList([
-            threestudio.find(self.cfg.geometry_type)({**self.cfg.geometry, "density_blob_center": centers[i]})
+            threestudio.find(self.cfg.geometry_type)(
+                {
+                    **self.cfg.geometry,
+                    "density_blob_center": centers[i],
+                    "density_blob_std": stds[i],
+                }
+            )
             for i, _ in enumerate(self.cfg.prompts)
         ])
         self.geometry = threestudio.find("multi-implicit-volume")({}, geometries=self.geometries)
