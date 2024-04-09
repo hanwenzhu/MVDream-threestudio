@@ -36,10 +36,9 @@ class Magic3D(BaseLift3DSystem):
         )
         self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
 
-    def training_step(self, batch, batch_idx):
-        out = self(batch)
-        prompt_utils = self.prompt_processor()
-        guidance_out = self.guidance(
+    def get_loss(self, batch, renderer, guidance, prompt_utils):
+        out = renderer(**batch)
+        guidance_out = guidance(
             out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
         )
 
@@ -81,6 +80,11 @@ class Magic3D(BaseLift3DSystem):
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
 
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        prompt_utils = self.prompt_processor()
+        loss = self.get_loss(batch, self.renderer, self.guidance, prompt_utils)
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):

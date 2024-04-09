@@ -6,11 +6,11 @@ from . import (
     instructnerf2nerf,
     latentnerf,
     magic3d,
+    multi_with_deepfloyd,
     prolificdreamer,
     sjc,
     textmesh,
     zero123,
     mvdream,
     mvdream_with_deepfloyd,
-    multi_mvdream_with_deepfloyd,
 )

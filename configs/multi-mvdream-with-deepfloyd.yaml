@@ -21,7 +21,7 @@ data:
   eval_camera_distance: 3.0
   eval_fovy_deg: 40.
 
-system_type: "multi-mvdream-with-deepfloyd"
+system_type: "multi-with-deepfloyd"
 system:
   prompt: ???
   prompts: []
