@@ -24,6 +24,9 @@ class MultiImplicitVolume(BaseGeometry):
         geometries: nn.ModuleList
     ) -> None:
         super().configure()
+        for geometry in geometries:
+            if not isinstance(geometry, ImplicitVolume):
+                raise TypeError("geometries must be ImplicitVolume")
         self.geometries = geometries
         if len(geometries) > 2:
             threestudio.warn("MultiImplicitVolume geometries list longer than 2; not compatible with intersection logic (yet)")
@@ -32,10 +35,11 @@ class MultiImplicitVolume(BaseGeometry):
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False
     ) -> Dict[str, Float[Tensor, "..."]]:
         if output_normal:
+            # TODO
             raise NotImplementedError
 
         geo_outs = [
-            geometry(points, output_normal=output_normal, transform_points=False) for geometry in self.geometries
+            geometry(points, output_normal=False, transform_points=False) for geometry in self.geometries
         ]
         # (#self.geometries, *N, 1)
         densities = torch.stack([geo_out["density"] for geo_out in geo_outs], dim=0)
