@@ -76,6 +76,14 @@ class ImplicitVolume(BaseImplicitGeometry):
             self.normal_network = get_mlp(
                 self.encoding.n_output_dims, 3, self.cfg.mlp_network_config
             )
+        
+    def transform_points(
+        self, points: Float[Tensor, "*N Di"]
+    ) -> Float[Tensor, "*N Di"]:
+        # Center & scale points so the camera focuses on this object
+        transformed = points * self.cfg.density_blob_std * 2
+        transformed += torch.as_tensor(self.cfg.density_blob_center).to(transformed)
+        return transformed
 
     def get_activated_density(
         self, points: Float[Tensor, "*N Di"], density: Float[Tensor, "*N 1"]
@@ -118,8 +126,7 @@ class ImplicitVolume(BaseImplicitGeometry):
 
         # TODO transform_points default should be False?
         if transform_points:
-            points *= self.cfg.density_blob_std * 2
-            points += torch.as_tensor(self.cfg.density_blob_center).to(points)
+            points = self.transform_points(points)
 
         points_unscaled = points  # points in the original scale
         points = contract_to_unisphere(
@@ -203,7 +210,7 @@ class ImplicitVolume(BaseImplicitGeometry):
 
     def forward_density(self, points: Float[Tensor, "*N Di"], transform_points: bool = True) -> Float[Tensor, "*N 1"]:
         if transform_points:
-            points += torch.as_tensor(self.cfg.density_blob_center).to(points)
+            points = self.transform_points(points)
 
         points_unscaled = points
         points = contract_to_unisphere(points_unscaled, self.bbox, self.unbounded)
