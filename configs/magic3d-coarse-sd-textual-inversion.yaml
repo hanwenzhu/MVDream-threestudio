@@ -7,14 +7,17 @@ seed: 0
 
 data_type: "random-camera-datamodule"
 data:
-  width: 256
-  height: 256
-  camera_distance_range: [0.8, 1.0]  # more zoomed in
+  batch_size: [1, 1]
+  # 0-4999: 64x64, >=5000: 512x512
+  # this drastically reduces VRAM usage as empty space is pruned in early training
+  width: [64, 512]
+  height: [64, 512]
+  resolution_milestones: [5000]
+  camera_distance_range: [1.0, 1.5]
   elevation_range: [0, 80]  # omniobject3d renderings trained on 0-80
-  fovy_range: [15, 60]
-  light_sample_strategy: "magic3d"
-  eval_camera_distance: 3.0
-  eval_fovy_deg: 40.
+  fovy_range: [40, 70]
+  eval_camera_distance: 1.5
+  eval_fovy_deg: 70.
 
 system_type: "magic3d-system"
 system:

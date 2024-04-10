@@ -133,13 +133,51 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
     def training_step(self, batch, batch_idx):
         # original loss (sd-xl)
         original_loss = 0.0
-        # super().training_step uses self.renderer, self.guidance, self.prompt_utils
         for renderer, prompt_utils in zip(self.renderers, self.prompt_utils):
-            original_loss += self.get_loss(batch, renderer, self.guidance, prompt_utils)
+            out = renderer(**batch)
+            guidance_out = self.guidance(
+                out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
+            )
+
+            for name, value in guidance_out.items():
+                self.log(f"train/{name}", value)
+                if name.startswith("loss_"):
+                    original_loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
+
+            if not self.cfg.refinement:
+                if self.C(self.cfg.loss.lambda_orient) > 0:
+                    if "normal" not in out:
+                        raise ValueError(
+                            "Normal is required for orientation loss, no normal is found in the output."
+                        )
+                    loss_orient = (
+                        out["weights"].detach()
+                        * dot(out["normal"], out["t_dirs"]).clamp_min(0.0) ** 2
+                    ).sum() / (out["opacity"] > 0).sum()
+                    self.log("train/loss_orient", loss_orient)
+                    original_loss += loss_orient * self.C(self.cfg.loss.lambda_orient)
+
+                loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
+                self.log("train/loss_sparsity", loss_sparsity)
+                original_loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
+
+                opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
+                loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
+                self.log("train/loss_opaque", loss_opaque)
+                original_loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
+            else:
+                loss_normal_consistency = out["mesh"].normal_consistency()
+                self.log("train/loss_normal_consistency", loss_normal_consistency)
+                original_loss += loss_normal_consistency * self.C(
+                    self.cfg.loss.lambda_normal_consistency
+                )
+
+            for name, value in self.cfg.loss.items():
+                self.log(f"train_params/{name}", self.C(value))
 
         # deepfloyd IF loss
         deep_floyd_loss = 0.0
-        out = self(batch)
+        out = self.renderer(**batch)
         prompt_utils = self.deep_floyd_prompt_processor()
         guidance_out = self.deep_floyd_guidance(
             out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
@@ -151,20 +189,6 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
                 deep_floyd_loss += value * self.C(self.deep_floyd_loss_cfg[name.replace("loss_", "lambda_")])
 
         # only consider loss as in magic3d coarse
-        # if not self.cfg.refinement:
-    
-        # no normal
-        # if self.C(self.deep_floyd_loss_cfg["lambda_orient"]) > 0:
-        #     if "normal" not in out:
-        #         raise ValueError(
-        #             "Normal is required for orientation loss, no normal is found in the output."
-        #         )
-        #     loss_orient = (
-        #         out["weights"].detach()
-        #         * dot(out["normal"], out["t_dirs"]).clamp_min(0.0) ** 2
-        #     ).sum() / (out["opacity"] > 0).sum()
-        #     self.log("train/deep_floyd_loss_orient", loss_orient)
-        #     deep_floyd_loss += loss_orient * self.C(self.deep_floyd_loss_cfg["lambda_orient"])
 
         loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
         self.log("train/deep_floyd_loss_sparsity", loss_sparsity)
@@ -174,12 +198,6 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
         loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
         self.log("train/deep_floyd_loss_opaque", loss_opaque)
         deep_floyd_loss += loss_opaque * self.C(self.deep_floyd_loss_cfg["lambda_opaque"])
-        # else:
-        #     loss_normal_consistency = out["mesh"].normal_consistency()
-        #     self.log("train/loss_normal_consistency", loss_normal_consistency)
-        #     loss += loss_normal_consistency * self.C(
-        #         self.cfg.loss.lambda_normal_consistency
-        #     )
 
         for name, value in self.deep_floyd_loss_cfg.items():
             self.log(f"train_params/deep_floyd_loss_cfg_{name}", self.C(value))
