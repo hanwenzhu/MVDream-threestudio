@@ -232,7 +232,7 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
                         "kwargs": {"cmap": None, "data_range": (0, 1)},
                     },
                 ],
-                name=f"validation_step-{i}",
+                name=f"validation_step-{name}",
                 step=self.true_global_step,
             )
         for i, renderer in enumerate(self.renderers):
