@@ -118,7 +118,7 @@ class ImplicitVolume(BaseImplicitGeometry):
 
         # TODO transform_points default should be False?
         if transform_points:
-            points *= self.cfg.density_blob_std
+            points *= self.cfg.density_blob_std * 2
             points += torch.as_tensor(self.cfg.density_blob_center).to(points)
 
         points_unscaled = points  # points in the original scale

@@ -13,7 +13,7 @@ data:
   resolution_milestones: [5000]
   camera_distance_range: [0.8, 1.0] # relative
   fovy_range: [15, 60]
-  elevation_range: [0, 80]
+  elevation_range: [0, 30]
   camera_perturb: 0.
   center_perturb: 0.
   up_perturb: 0.
