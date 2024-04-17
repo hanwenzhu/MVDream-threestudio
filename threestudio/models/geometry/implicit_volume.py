@@ -116,7 +116,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         density = get_activation(self.cfg.density_activation)(raw_density)
         if self.cfg.density_blob_mask:
             # Make density 0 if > 2sigma away (to prevent density on unrendered points if transform_points)
-            density *= (torch.sqrt(((points - density_blob_center) ** 2).sum(dim=-1)) > 2 * self.cfg.density_blob_std)[..., None]
+            density[torch.sqrt(((points - density_blob_center) ** 2).sum(dim=-1))[..., None] > 2 * self.cfg.density_blob_std] = 0.0
         return raw_density, density
 
     def forward(
