@@ -29,6 +29,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         )
         density_blob_scale: float = 10.0
         density_blob_std: float = 0.5
+        density_blob_mask: bool = False
         pos_encoding_config: dict = field(
             default_factory=lambda: {
                 "otype": "HashGrid",
@@ -113,6 +114,9 @@ class ImplicitVolume(BaseImplicitGeometry):
             raise ValueError(f"Unknown density bias {self.cfg.density_bias}")
         raw_density: Float[Tensor, "*N 1"] = density + density_bias
         density = get_activation(self.cfg.density_activation)(raw_density)
+        if self.cfg.density_blob_mask:
+            # Make density 0 if > 2sigma away (to prevent density on unrendered points if transform_points)
+            density *= (((points - density_blob_center) ** 2).sum(dim=-1) > 2 * self.cfg.density_blob_std ** 2)
         return raw_density, density
 
     def forward(

@@ -24,6 +24,8 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
     class Config(BaseLift3DSystem.Config):
         prompt: str = ""
         prompts: List[str] = field(default_factory=lambda: [])
+        blob_centers: List[List[float]] = field(default_factory=lambda: [])
+        blob_stds: List[float] = field(default_factory=lambda: [])
     
     cfg: Config
 
@@ -38,18 +40,14 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
         if self.cfg.geometry_type != "implicit-volume":
             raise NotImplementedError
         # FIXME: geometries.update_step is not called
-        # FIXME: hard-coded density_blob_center
-        centers = [
-            [0.0, 0.0, 0.25],  # first object is slightly higher
-            [0.0, 0.0, -0.25]  # second object is slightly lower
-        ]
-        stds = [0.25, 0.5]
         self.geometries = nn.ModuleList([
             threestudio.find(self.cfg.geometry_type)(
                 {
                     **self.cfg.geometry,
-                    "density_blob_center": centers[i],
-                    "density_blob_std": stds[i],
+                    "density_blob_center": self.cfg.blob_centers[i],
+                    "density_blob_std": self.cfg.blob_stds[i],
+                    # to prevent density on points that are not rendered in individual renderer
+                    "density_blob_mask": True,
                 }
             )
             for i, _ in enumerate(self.cfg.prompts)
