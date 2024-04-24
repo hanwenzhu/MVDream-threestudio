@@ -132,7 +132,9 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
     def training_step(self, batch, batch_idx):
         # original loss (sd-xl)
         original_loss = 0.0
-        for renderer, prompt_utils in zip(self.renderers, self.prompt_utils):
+        for i, (renderer, prompt_utils) in enumerate(zip(self.renderers, self.prompt_utils)):
+            object_loss = 0.0
+
             out = renderer(**batch)
             guidance_out = self.guidance(
                 out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
@@ -141,19 +143,25 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
             for name, value in guidance_out.items():
                 self.log(f"train/{name}", value)
                 if name.startswith("loss_"):
-                    original_loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
+                    object_loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
 
             loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
             self.log("train/loss_sparsity", loss_sparsity)
-            original_loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
+            object_loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
 
             opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
             loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
             self.log("train/loss_opaque", loss_opaque)
-            original_loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
+            object_loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
 
             for name, value in self.cfg.loss.items():
                 self.log(f"train_params/{name}", self.C(value))
+
+            if "lambda_object" in self.cfg.loss:
+                lambda_object = self.cfg.loss.lambda_object[i]
+            else:
+                lambda_object = 1 / len(self.renderers)
+            original_loss += lambda_object * object_loss
 
         # deepfloyd IF loss
         deep_floyd_loss = 0.0
