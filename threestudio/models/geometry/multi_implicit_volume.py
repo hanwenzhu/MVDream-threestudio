@@ -57,8 +57,7 @@ class MultiImplicitVolume(BaseGeometry):
             # Output weighted sum of features of each component geometry
             # (#geometries, *N, Nf)
             features = torch.stack([geo_out["features"] for geo_out in geo_outs], dim=0)
-            # add small constant for stability
-            output.update({"features": (features * (weights + 1e-4)).sum(dim=0) / (weights + 1e-4).sum(dim=0)})
+            output.update({"features": (features * weights).sum(dim=0) / weights.sum(dim=0)})
 
         # TODO this only works for two objects
         output["intersection"] = weights.prod(dim=0)
