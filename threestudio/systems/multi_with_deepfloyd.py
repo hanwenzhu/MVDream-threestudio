@@ -286,7 +286,7 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
                 name=f"test_step-{name}",
                 step=self.true_global_step,
             )
-        for i, _ in range(len(self.renderers)):
+        for i in range(len(self.renderers)):
             run_test(i, i)
         run_test("combined", None)
 
