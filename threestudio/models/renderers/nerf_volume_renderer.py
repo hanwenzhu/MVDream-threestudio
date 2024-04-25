@@ -51,6 +51,7 @@ class NeRFVolumeRenderer(VolumeRenderer):
         rays_d: Float[Tensor, "B H W 3"],
         light_positions: Float[Tensor, "B 3"],
         bg_color: Optional[Tensor] = None,
+        geo_kwargs: Optional[Dict] = None,
         **kwargs
     ) -> Dict[str, Float[Tensor, "..."]]:
         batch_size, height, width = rays_o.shape[:3]
@@ -115,9 +116,11 @@ class NeRFVolumeRenderer(VolumeRenderer):
         positions = t_origins + t_dirs * t_positions
         t_intervals = t_ends - t_starts
 
+        if geo_kwargs is None:
+            geo_kwargs = {}
         if self.training:
             geo_out = self.geometry(
-                positions, output_normal=self.material.requires_normal
+                positions, output_normal=self.material.requires_normal, **geo_kwargs
             )
             rgb_fg_all = self.material(
                 viewdirs=t_dirs,
@@ -133,6 +136,7 @@ class NeRFVolumeRenderer(VolumeRenderer):
                 self.cfg.eval_chunk_size,
                 positions,
                 output_normal=self.material.requires_normal,
+                **geo_kwargs
             )
             rgb_fg_all = chunk_batch(
                 self.material,
@@ -250,9 +254,6 @@ class NeRFVolumeRenderer(VolumeRenderer):
                         "comp_normal": comp_normal.view(batch_size, height, width, 3),
                     }
                 )
-
-        if "intersection" in geo_out:
-            out["intersection"] = geo_out["intersection"]
 
         return out
 
