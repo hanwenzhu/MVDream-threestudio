@@ -26,7 +26,7 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
         prompts: List[str] = field(default_factory=lambda: [])
         blob_centers: List[List[float]] = field(default_factory=lambda: [])
         blob_stds: List[float] = field(default_factory=lambda: [])
-        blob_invert_z: List[bool] = field(default_factory=lambda: [])
+        blob_invert_x: List[bool] = field(default_factory=lambda: [])
         blob_mask: bool = True
     
     cfg: Config
@@ -48,7 +48,7 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
                     **self.cfg.geometry,
                     "density_blob_center": self.cfg.blob_centers[i],
                     "density_blob_std": self.cfg.blob_stds[i],
-                    "density_blob_invert_z": self.cfg.blob_invert_z[i],
+                    "density_blob_invert_x": self.cfg.blob_invert_x[i],
                     # to prevent density on points that are not rendered in individual renderer
                     "density_blob_mask": self.cfg.blob_mask,
                 }

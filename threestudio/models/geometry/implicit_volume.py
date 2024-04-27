@@ -29,7 +29,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         )
         density_blob_scale: float = 10.0
         density_blob_std: float = 0.5
-        density_blob_invert_z: bool = False
+        density_blob_invert_x: bool = False
         density_blob_mask: bool = False
         pos_encoding_config: dict = field(
             default_factory=lambda: {
@@ -83,10 +83,11 @@ class ImplicitVolume(BaseImplicitGeometry):
         self, points: Float[Tensor, "*N Di"]
     ) -> Float[Tensor, "*N Di"]:
         # Center & scale points so the camera focuses on this object
-        transformed = points * self.cfg.density_blob_std * 2
+        transformed = points
+        if self.cfg.density_blob_invert_x:
+            transformed *= torch.as_tensor([-1.0, 1.0, 1.0]).to(transformed)
+        transformed = transformed * self.cfg.density_blob_std * 2
         transformed += torch.as_tensor(self.cfg.density_blob_center).to(transformed)
-        if self.cfg.density_blob_invert_z:
-            transformed *= torch.as_tensor([1.0, 1.0, -1.0]).to(transformed)
         return transformed
 
     def get_activated_density(
