@@ -121,8 +121,8 @@ class WithMesh(BaseLift3DSystem):
         for name, value in self.cfg.composed_loss.items():
             self.log(f"train_params/composed_{name}", self.C(value))
 
-        lambda_if = self.C(self.cfg.loss["lambda_if"])
-        loss = (1 - lambda_if) * loss + lambda_if * composed_loss
+        lambda_composed = self.C(self.cfg.loss["lambda_composed"])
+        loss = (1 - lambda_composed) * loss + lambda_composed * composed_loss
 
         return {"loss": loss}
 

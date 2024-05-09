@@ -26,7 +26,7 @@ system:
   composed_prompt_processor_type: "deep-floyd-prompt-processor"
   composed_prompt_processor:
     pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
-    prompt: ""
+    prompt: ???
   
   composed_guidance_type: "deep-floyd-guidance"
   composed_guidance:
@@ -102,7 +102,7 @@ system:
   loss:
     # weight of IF in the loss
     # loss = (1 - lambda_if) * MVDream loss + lambda_if * IF loss
-    lambda_if: 0.9
+    lambda_composed: 0.9
     lambda_sds: 1.
     lambda_orient: 0.
     lambda_sparsity: 0.
