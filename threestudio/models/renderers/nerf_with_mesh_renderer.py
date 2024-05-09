@@ -37,8 +37,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
     ) -> None:
         super().configure(geometry, material, background)
         self.mesh = Mesh.from_path(
-            self.cfg.mesh_path, get_device(),
-            **self.cfg.mesh_config
+            self.cfg.mesh_path, get_device(), **self.cfg.mesh
         )
         self.ctx = NVDiffRasterizerContext(self.cfg.context_type, get_device())
 
