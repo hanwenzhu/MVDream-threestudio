@@ -337,17 +337,17 @@ class Mesh:
             mesh.apply_translation(translation)
 
         obj = cls(
-            v_pos=torch.from_numpy(mesh.vertices).to(device),
+            v_pos=torch.from_numpy(mesh.vertices).float().to(device),
             t_pos_idx=torch.from_numpy(mesh.faces).to(device)
         )
 
         # Not currently used
-        # obj._v_nrm = torch.from_numpy(mesh.vertex_normals).to(device)
+        # obj._v_nrm = torch.from_numpy(mesh.vertex_normals).float().to(device)
         # obj._edges = torch.from_numpy(mesh.edges).to(device)
 
         # Not currently used, but could use
         # if mesh.visual.kind == "texture":
-        #     obj._v_tex = torch.from_numpy(mesh.visual.uv).to(device)
+        #     obj._v_tex = torch.from_numpy(mesh.visual.uv).float().to(device)
         #     obj._t_tex_idx = obj.t_pos_idx
 
         # Color vertices (converting from a texture map)
