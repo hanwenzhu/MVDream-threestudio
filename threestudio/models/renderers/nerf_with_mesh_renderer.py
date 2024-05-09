@@ -200,7 +200,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             # Set occluded weight to 0
             weights[
                 mask.reshape(-1, 1)[ray_indices] &  # boolean mask for mesh
-                distances >= gb_distances[ray_indices]  # mesh is closer than the sampling point
+                (distances >= gb_distances[ray_indices])  # mesh is closer than the sampling point
             ] = 0.0
         else:
             gb_rgb_fg_aa = bg_color.reshape(batch_size * height * width, -1)
