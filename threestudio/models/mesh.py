@@ -355,6 +355,9 @@ class Mesh:
             color = mesh.visual.to_color()
         else:
             color = mesh.visual
-        obj._v_rgb = (torch.from_numpy(color.vertex_colors).float() / 255.0).to(device)
+        obj._v_rgb = (
+            # Drop alpha channel
+            torch.from_numpy(color.vertex_colors[..., :3]).float() / 255.0
+        ).to(device)
 
         return obj
