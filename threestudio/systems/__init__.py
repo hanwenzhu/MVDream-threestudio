@@ -13,4 +13,5 @@ from . import (
     zero123,
     mvdream,
     mvdream_with_deepfloyd,
+    with_mesh,
 )

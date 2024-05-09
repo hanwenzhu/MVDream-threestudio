@@ -307,3 +307,54 @@ class Mesh:
         loss = loss.norm(dim=1)
         loss = loss.mean()
         return loss
+
+    @classmethod
+    def from_path(
+        cls,
+        file_path: str,
+        device: torch.device,
+        # if the model is Y-up instead of Z-up
+        y_up: bool = True,
+        normalize: bool = True,
+        scale: Optional[List[float]] = None,
+        rotation: Optional[float] = None,
+        translation: Optional[List[float]] = None,
+    ) -> Mesh:
+        import trimesh
+
+        mesh = trimesh.load(file_path, force="mesh")
+
+        if y_up:
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
+        if normalize:
+            mesh.apply_translation(-mesh.centroid)
+            mesh.apply_scale(1 / np.linalg.norm(mesh.vertices, axis=1).mean())
+        if scale is not None:
+            mesh.apply_scale(scale)
+        if rotation is not None:
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation, [0, 0, 1]))
+        if translation is not None:
+            mesh.apply_translation(translation)
+
+        obj = cls(
+            v_pos=torch.from_numpy(mesh.vertices).to(device),
+            t_pos_idx=torch.from_numpy(mesh.faces).to(device)
+        )
+
+        # Not currently used
+        # obj._v_nrm = torch.from_numpy(mesh.vertex_normals).to(device)
+        # obj._edges = torch.from_numpy(mesh.edges).to(device)
+
+        # Not currently used, but could use
+        # if mesh.visual.kind == "texture":
+        #     obj._v_tex = torch.from_numpy(mesh.visual.uv).to(device)
+        #     obj._t_tex_idx = obj.t_pos_idx
+
+        # Color vertices (converting from a texture map)
+        if mesh.visual.kind == "texture":
+            color = mesh.visual.to_color()
+        else:
+            color = mesh.visual
+        obj._v_rgb = (torch.from_numpy(color.vertex_colors).float() / 255.0).to(device)
+
+        return obj

@@ -18,6 +18,14 @@ from threestudio.utils.typing import *
 
 @threestudio.register("multi-implicit-volume")
 class MultiImplicitVolume(BaseGeometry):
+    @dataclass
+    class Config(BaseGeometry.Config):
+        blob_centers: List[List[float]] = field(default_factory=lambda: [])
+        blob_stds: List[float] = field(default_factory=lambda: [])
+        blob_invert_x: List[bool] = field(default_factory=lambda: [])
+        blob_mask: bool = True
+    
+    cfg: Config
 
     def configure(
         self,
@@ -31,6 +39,17 @@ class MultiImplicitVolume(BaseGeometry):
         if len(geometries) > 2:
             threestudio.warn("MultiImplicitVolume geometries list longer than 2; not compatible with intersection logic (yet)")
 
+    def focus_points(
+        self, points: Float[Tensor, "*N Di"], i
+    ) -> Float[Tensor, "*N Di"]:
+        # Transform points for rendering composed scene to focusing on individual object
+        transformed = points
+        transformed -= torch.as_tensor(self.cfg.blob_centers)[i, :].to(transformed)
+        transformed /= self.cfg.blob_stds[i] * 2.0
+        if self.cfg.blob_invert_x[i]:
+            transformed *= torch.as_tensor([-1.0, 1.0, 1.0]).to(transformed)
+        return transformed
+
     def forward(
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False, filter: Optional[int] = None
     ) -> Dict[str, Float[Tensor, "..."]]:
@@ -38,10 +57,7 @@ class MultiImplicitVolume(BaseGeometry):
             # TODO
             raise NotImplementedError
 
-        geometries = self.geometries if not filter else [self.geometries[filter]]
-        geo_outs = [
-            geometry(points, output_normal=False, transform_points=False) for geometry in geometries
-        ]
+        geo_outs = self.forward_geometries(points, filter=filter)
         # (#geometries, *N, 1)
         densities = torch.stack([geo_out["density"] for geo_out in geo_outs], dim=0)
 
@@ -64,9 +80,27 @@ class MultiImplicitVolume(BaseGeometry):
 
         return output
 
+    def forward_geometries(
+        self, points: Float[Tensor, "*N Di"], density_only: bool = False, filter: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        geo_outs = []
+        for i, geometry in enumerate(self.geometries):
+            if filter is not None and filter != i:
+                continue
+            focused = self.focus_points(points, i)
+            if density_only:
+                geo_out = {"density": geometry.forward_density(focused)}
+            else:
+                geo_out = geometry(focused)
+            if self.cfg.blob_mask:
+                # Make density 0 if > radius (to prevent density on unrendered points if points are transformed)
+                geo_out["density"][torch.sqrt((focused ** 2).sum(dim=-1))[..., None] > geometry.cfg.radius] = 0.0
+            geo_outs.append(geo_out)
+        return geo_outs
+
     def forward_density(self, points: Float[Tensor, "*N Di"]) -> Float[Tensor, "*N 1"]:
-        densities = [geometry.forward_density(points, transform_points=False) for geometry in self.geometries]
-        return torch.stack(densities, dim=0).sum(dim=0)
+        geo_outs = self.forward_geometries(points, density_only=True)
+        return torch.stack([out["density"] for out in geo_outs], dim=0).sum(dim=0)
 
     def forward_field(
         self, points: Float[Tensor, "*N Di"]

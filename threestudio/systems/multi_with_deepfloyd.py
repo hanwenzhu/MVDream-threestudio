@@ -7,6 +7,7 @@ import torch.nn as nn
 
 import threestudio
 from threestudio.systems.base import BaseLift3DSystem
+from threestudio.models.geometry.multi_implicit_volume import MultiImplicitVolume
 from threestudio.utils.misc import cleanup, get_device
 from threestudio.utils.ops import binary_cross_entropy, dot
 from threestudio.utils.typing import *
@@ -24,10 +25,7 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
     class Config(BaseLift3DSystem.Config):
         prompt: str = ""
         prompts: List[str] = field(default_factory=lambda: [])
-        blob_centers: List[List[float]] = field(default_factory=lambda: [])
-        blob_stds: List[float] = field(default_factory=lambda: [])
-        blob_invert_x: List[bool] = field(default_factory=lambda: [])
-        blob_mask: bool = True
+        composed_geometry: Optional[MultiImplicitVolume.Config] = None
     
     cfg: Config
 
@@ -43,19 +41,12 @@ class MultiWithDeepFloydSystem(BaseLift3DSystem):
             raise NotImplementedError
         # FIXME: geometries.update_step is not called
         self.geometries = nn.ModuleList([
-            threestudio.find(self.cfg.geometry_type)(
-                {
-                    **self.cfg.geometry,
-                    "density_blob_center": self.cfg.blob_centers[i],
-                    "density_blob_std": self.cfg.blob_stds[i],
-                    "density_blob_invert_x": self.cfg.blob_invert_x[i],
-                    # to prevent density on points that are not rendered in individual renderer
-                    "density_blob_mask": self.cfg.blob_mask,
-                }
-            )
-            for i, _ in enumerate(self.cfg.prompts)
+            threestudio.find("implicit-volume")(self.cfg.geometry)
+            for _ in enumerate(self.cfg.prompts)
         ])
-        self.geometry = threestudio.find("multi-implicit-volume")({}, geometries=self.geometries)
+        self.geometry = threestudio.find("multi-implicit-volume")(
+            self.cfg.composed_geometry, geometries=self.geometries
+        )
 
         self.material = threestudio.find(self.cfg.material_type)(self.cfg.material)
         self.background = threestudio.find(self.cfg.background_type)(

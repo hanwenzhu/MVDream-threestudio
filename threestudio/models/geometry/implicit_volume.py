@@ -24,13 +24,8 @@ class ImplicitVolume(BaseImplicitGeometry):
         n_feature_dims: int = 3
         density_activation: Optional[str] = "softplus"
         density_bias: Union[float, str] = "blob_magic3d"
-        density_blob_center: List[float] = field(
-            default_factory=lambda: [0., 0., 0.]
-        )
         density_blob_scale: float = 10.0
         density_blob_std: float = 0.5
-        density_blob_invert_x: bool = False
-        density_blob_mask: bool = False
         pos_encoding_config: dict = field(
             default_factory=lambda: {
                 "otype": "HashGrid",
@@ -78,29 +73,17 @@ class ImplicitVolume(BaseImplicitGeometry):
             self.normal_network = get_mlp(
                 self.encoding.n_output_dims, 3, self.cfg.mlp_network_config
             )
-        
-    def transform_points(
-        self, points: Float[Tensor, "*N Di"]
-    ) -> Float[Tensor, "*N Di"]:
-        # Center & scale points so the camera focuses on this object
-        transformed = points
-        if self.cfg.density_blob_invert_x:
-            transformed *= torch.as_tensor([-1.0, 1.0, 1.0]).to(transformed)
-        transformed = transformed * self.cfg.density_blob_std * 2
-        transformed += torch.as_tensor(self.cfg.density_blob_center).to(transformed)
-        return transformed
 
     def get_activated_density(
         self, points: Float[Tensor, "*N Di"], density: Float[Tensor, "*N 1"]
     ) -> Tuple[Float[Tensor, "*N 1"], Float[Tensor, "*N 1"]]:
         density_bias: Union[float, Float[Tensor, "*N 1"]]
-        density_blob_center: Float[Tensor, "Di"] = torch.as_tensor(self.cfg.density_blob_center).to(points)
         if self.cfg.density_bias == "blob_dreamfusion":
             # pre-activation density bias
             density_bias = (
                 self.cfg.density_blob_scale
                 * torch.exp(
-                    -0.5 * ((points - density_blob_center)**2).sum(dim=-1) / self.cfg.density_blob_std**2
+                    -0.5 * (points**2).sum(dim=-1) / self.cfg.density_blob_std**2
                 )[..., None]
             )
         elif self.cfg.density_bias == "blob_magic3d":
@@ -109,7 +92,7 @@ class ImplicitVolume(BaseImplicitGeometry):
                 self.cfg.density_blob_scale
                 * (
                     1
-                    - torch.sqrt(((points - density_blob_center)**2).sum(dim=-1)) / self.cfg.density_blob_std
+                    - torch.sqrt((points**2).sum(dim=-1)) / self.cfg.density_blob_std
                 )[..., None]
             )
         elif isinstance(self.cfg.density_bias, float):
@@ -118,23 +101,16 @@ class ImplicitVolume(BaseImplicitGeometry):
             raise ValueError(f"Unknown density bias {self.cfg.density_bias}")
         raw_density: Float[Tensor, "*N 1"] = density + density_bias
         density = get_activation(self.cfg.density_activation)(raw_density)
-        if self.cfg.density_blob_mask:
-            # Make density 0 if > 2sigma away (to prevent density on unrendered points if transform_points)
-            density[torch.sqrt(((points - density_blob_center) ** 2).sum(dim=-1))[..., None] > 2 * self.cfg.density_blob_std] = 0.0
         return raw_density, density
 
     def forward(
-        self, points: Float[Tensor, "*N Di"], output_normal: bool = False, transform_points: bool = True
+        self, points: Float[Tensor, "*N Di"], output_normal: bool = False
     ) -> Dict[str, Float[Tensor, "..."]]:
         grad_enabled = torch.is_grad_enabled()
 
         if output_normal and self.cfg.normal_type == "analytic":
             torch.set_grad_enabled(True)
             points.requires_grad_(True)
-
-        # TODO transform_points default should be False?
-        if transform_points:
-            points = self.transform_points(points)
 
         points_unscaled = points  # points in the original scale
         points = contract_to_unisphere(
@@ -216,10 +192,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         torch.set_grad_enabled(grad_enabled)
         return output
 
-    def forward_density(self, points: Float[Tensor, "*N Di"], transform_points: bool = True) -> Float[Tensor, "*N 1"]:
-        if transform_points:
-            points = self.transform_points(points)
-
+    def forward_density(self, points: Float[Tensor, "*N Di"]) -> Float[Tensor, "*N 1"]:
         points_unscaled = points
         points = contract_to_unisphere(points_unscaled, self.bbox, self.unbounded)
 
