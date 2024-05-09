@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import nerfacc
 import torch
@@ -24,6 +24,8 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
     @dataclass
     class Config(NeRFVolumeRenderer.Config, NVDiffRasterizer.Config):
         mesh_path: str = ""
+        # See Mesh.from_path for options
+        mesh: dict = field(default_factory=dict)
 
     cfg: Config
 
@@ -34,7 +36,10 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         background: BaseBackground,
     ) -> None:
         super().configure(geometry, material, background)
-        self.mesh = Mesh.from_path(self.cfg.mesh_path, get_device())
+        self.mesh = Mesh.from_path(
+            self.cfg.mesh_path, get_device(),
+            **self.cfg.mesh_config
+        )
         self.ctx = NVDiffRasterizerContext(self.cfg.context_type, get_device())
 
     def forward(

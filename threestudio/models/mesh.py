@@ -314,9 +314,11 @@ class Mesh:
         file_path: str,
         device: torch.device,
         # if the model is Y-up instead of Z-up
+        # (TODO it may be easier to ask the user to specify a 4x4 matrix instead for the following)
         y_up: bool = True,
         normalize: bool = True,
         scale: Optional[List[float]] = None,
+        # Rotation about Z-axis (up)
         rotation: Optional[float] = None,
         translation: Optional[List[float]] = None,
     ) -> Mesh:
@@ -325,14 +327,14 @@ class Mesh:
         mesh = trimesh.load(file_path, force="mesh")
 
         if y_up:
-            mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
         if normalize:
             mesh.apply_translation(-mesh.centroid)
             mesh.apply_scale(1 / np.linalg.norm(mesh.vertices, axis=1).mean())
         if scale is not None:
             mesh.apply_scale(scale)
         if rotation is not None:
-            mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation, [0, 0, 1]))
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation * np.pi / 180.0, [0, 0, 1]))
         if translation is not None:
             mesh.apply_translation(translation)
 
