@@ -318,15 +318,17 @@ class Mesh:
         # whether a test point at [x / (X - 1), y / (Y - 1), z / (Z - 1)]
         # (then scaled to the bounding box) is in the mesh
         contains = torch.zeros_like(points[..., 0], dtype=torch.bool)
-        contracted = scale_tensor(points, self.extras["bounds"], (0.0, 1.0))
-        occupancies = self.extras["occupancies"]
+        bounds = torch.as_tensor(self.extras["bounds"]).to(points)
+        occupancies = torch.as_tensor(self.extras["occupancies"]).to(contains)
+
+        contracted = scale_tensor(points, bounds, (0.0, 1.0))
         in_bbox = (0.0 <= contracted).all(dim=-1) & (contracted <= 1.0).all(dim=-1)
         occupancies_shape = torch.as_tensor(occupancies.shape).to(contracted)
         # A point is in the mesh if its closest test point is
         # We convert contracted points in the bbox (in [0, 1]^3) to the test point at
         # round([x*(X-1), y*(Y-1), z*(Z-1)])
         contracted_indices = torch.round(contracted[in_bbox] * (occupancies_shape - 1))
-        contains[in_bbox] = torch.as_tensor(occupancies).to(contains)[
+        contains[in_bbox] = occupancies[
             contracted_indices[..., 0], contracted_indices[..., 1], contracted_indices[..., 2]
         ]
         return contains
@@ -402,7 +404,7 @@ class Mesh:
         # which is much faster with embree installed (and pyembree or embreex bindings)
         if not trimesh.ray.has_embree:
             threestudio.warn(
-                "Embree is not installed for trimesh, so occupancy testing will be very slow. "
+                "Embree is not installed for trimesh, so occupancy testing will be slow and may trigger OOM. "
                 "You should install Embree and then either pyembree or embreex. "
                 "See trimesh docs for more details."
             )
