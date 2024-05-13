@@ -40,7 +40,7 @@ class MultiImplicitVolume(BaseGeometry):
             threestudio.warn("MultiImplicitVolume geometries list longer than 2; not compatible with intersection logic (yet)")
 
     def focus_points(
-        self, points: Float[Tensor, "*N Di"], i
+        self, points: Float[Tensor, "*N Di"], i: int
     ) -> Float[Tensor, "*N Di"]:
         # Transform points for rendering composed scene to focusing on individual object
         transformed = points

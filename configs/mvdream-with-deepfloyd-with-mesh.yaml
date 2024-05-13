@@ -107,8 +107,6 @@ system:
       project: "threestudio"
 
   loss:
-    # weight of IF in the loss
-    # loss = (1 - lambda_if) * MVDream loss + lambda_if * IF loss
     lambda_composed: 0.9
     lambda_sds: 1.
     lambda_orient: 0.

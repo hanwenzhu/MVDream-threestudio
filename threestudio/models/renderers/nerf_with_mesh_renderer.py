@@ -41,6 +41,19 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         )
         self.ctx = NVDiffRasterizerContext(self.cfg.context_type, get_device())
 
+    def focus_to_geometry(
+        self, points: Float[Tensor, "*N Di"]
+    ) -> Float[Tensor, "*N Di"]:
+        # TODO. This also requires changing update_step behavior
+        return NotImplementedError
+        # Transform points for rendering composed scene to focusing on individual object
+        transformed = points
+        transformed -= torch.as_tensor(...).to(transformed)
+        transformed /= ... * 2.0
+        if ...:
+            transformed *= torch.as_tensor([-1.0, 1.0, 1.0]).to(transformed)
+        return transformed
+
     def forward(
         self,
         rays_o: Float[Tensor, "B H W 3"],
@@ -55,6 +68,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         **kwargs
     ) -> Dict[str, Any]:
         batch_size = mvp_mtx.shape[0]
+        assert rays_o.shape == (batch_size, height, width, 3)
 
         # Step 1: Sample implicit volume and background
         # From nerf_volume_renderer.py:
@@ -208,6 +222,8 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             ] = 0.0
         else:
             gb_rgb_fg_aa = bg_color.reshape(batch_size * height * width, -1)
+            # Remove points inside mesh
+            weights[self.mesh.contains_points(positions)[..., None]] = 0.0
 
         # Step 4: Render implicit volume
         opacity: Float[Tensor, "Nr 1"] = nerfacc.accumulate_along_rays(

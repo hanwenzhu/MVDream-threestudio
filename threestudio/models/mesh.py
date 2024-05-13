@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 import threestudio
-from threestudio.utils.ops import dot
+from threestudio.utils.ops import dot, scale_tensor
 from threestudio.utils.typing import *
 
 
@@ -308,6 +308,29 @@ class Mesh:
         loss = loss.mean()
         return loss
 
+    def contains_points(self, points: Float[Tensor, "*N 3"]) -> Float[Tensor, "*N"]:
+        if "bounds" not in self.extras or "occupancies" not in self.extras:
+            # TODO, convert to trimesh and calculate bounds and occupancies like in from_path
+            raise NotImplementedError
+
+        # self.extras["bounds"] contains the bbox of the mesh
+        # self.extras["occupancices"] is of shape (X, Y, Z), where occupancies[x, y, z] contains
+        # whether a test point at [x / (X - 1), y / (Y - 1), z / (Z - 1)]
+        # (then scaled to the bounding box) is in the mesh
+        contains = torch.zeros_like(points[..., 0], dtype=torch.bool)
+        contracted = scale_tensor(points, self.extras["bounds"], (0.0, 1.0))
+        occupancies = self.extras["occupancies"]
+        in_bbox = (0.0 <= contracted).all(dim=-1) & (contracted <= 1.0).all(dim=-1)
+        occupancies_shape = torch.as_tensor(occupancies.shape).to(contracted)
+        # A point is in the mesh if its closest test point is
+        # We convert contracted points in the bbox (in [0, 1]^3) to the test point at
+        # round([x*(X-1), y*(Y-1), z*(Z-1)])
+        contracted_indices = torch.round(contracted[in_bbox] * (occupancies_shape - 1))
+        contains[in_bbox] = torch.as_tensor(occupancies).to(contains)[
+            contracted_indices[..., 0], contracted_indices[..., 1], contracted_indices[..., 2]
+        ]
+        return contains
+
     @classmethod
     def from_path(
         cls,
@@ -321,6 +344,7 @@ class Mesh:
         # Rotation about Z-axis (up)
         rotation: Optional[float] = None,
         translation: Optional[List[float]] = None,
+        occupancy_resolution: int = 128,
     ) -> Mesh:
         import trimesh
 
@@ -330,7 +354,7 @@ class Mesh:
             mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
         if normalize:
             mesh.apply_translation(-mesh.centroid)
-            mesh.apply_scale(1 / np.linalg.norm(mesh.vertices, axis=1).mean())
+            mesh.apply_scale(1 / mesh.scale)
         if scale is not None:
             mesh.apply_scale(scale)
         if rotation is not None:
@@ -357,9 +381,39 @@ class Mesh:
             color = mesh.visual.to_color()
         else:
             color = mesh.visual
-        obj._v_rgb = (
+        obj.set_vertex_color((
             # Drop alpha channel
             torch.from_numpy(color.vertex_colors[..., :3]).float() / 255.0
-        ).to(device)
+        ).to(device))
+
+        # (2, 3) AABB bounding box
+        obj.add_extra("bounds", mesh.bounds)
+
+        # We test if each point in a 3D grid is within the mesh and store in occupancies:
+        # occupancies[x, y, z]: for p = (x / 127, y / 127, z / 127), which is in [0, 1]^3
+        # we scale p to a point in the bounding box and test if p is contained in the mesh
+        test_points = np.stack(np.meshgrid(
+            np.linspace(mesh.bounds[0, 0], mesh.bounds[1, 0], occupancy_resolution),
+            np.linspace(mesh.bounds[0, 1], mesh.bounds[1, 1], occupancy_resolution),
+            np.linspace(mesh.bounds[0, 2], mesh.bounds[1, 2], occupancy_resolution),
+            indexing="ij"
+        ), axis=-1)
+        # For occupancy testing we use trimesh contains_points,
+        # which is much faster with embree installed (and pyembree or embreex bindings)
+        if not trimesh.ray.has_embree:
+            threestudio.warn(
+                "Embree is not installed for trimesh, so occupancy testing will be very slow. "
+                "You should install Embree and then either pyembree or embreex. "
+                "See trimesh docs for more details."
+            )
+        threestudio.info(
+            "Testing occupancy for mesh. If this takes too long, consider lowering triangle count "
+            "or decreasing occupancy_resolution"
+        )
+        occupancies = mesh.ray.contains_points(
+            test_points.reshape(-1, 1)
+        ).reshape(test_points.shape[:3])
+        # (128, 128, 128)
+        obj.add_extra("occupancies", occupancies)
 
         return obj
