@@ -356,7 +356,8 @@ class Mesh:
             mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
         if normalize:
             mesh.apply_translation(-mesh.centroid)
-            mesh.apply_scale(1 / mesh.scale)
+            # Can also use mesh.scale for the max diameter
+            mesh.apply_scale(1 / np.linalg.norm(mesh.vertices, axis=1).mean())
         if scale is not None:
             mesh.apply_scale(scale)
         if rotation is not None:
