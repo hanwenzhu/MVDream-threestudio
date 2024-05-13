@@ -411,7 +411,7 @@ class Mesh:
             "or decreasing occupancy_resolution"
         )
         occupancies = mesh.ray.contains_points(
-            test_points.reshape(-1, 1)
+            test_points.reshape(-1, 3)
         ).reshape(test_points.shape[:3])
         # (128, 128, 128)
         obj.add_extra("occupancies", occupancies)
