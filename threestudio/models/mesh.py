@@ -327,7 +327,7 @@ class Mesh:
         # A point is in the mesh if its closest test point is
         # We convert contracted points in the bbox (in [0, 1]^3) to the test point at
         # round([x*(X-1), y*(Y-1), z*(Z-1)])
-        contracted_indices = torch.round(contracted[in_bbox] * (occupancies_shape - 1))
+        contracted_indices = torch.round(contracted[in_bbox] * (occupancies_shape - 1)).long()
         contains[in_bbox] = occupancies[
             contracted_indices[..., 0], contracted_indices[..., 1], contracted_indices[..., 2]
         ]
