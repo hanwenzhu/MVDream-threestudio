@@ -65,8 +65,8 @@ system:
     random_aug: true
     share_aug_bg: true
 
-  renderer_type: "nerf-with-mesh-renderer"
-  renderer:
+  composed_renderer_type: "nerf-with-mesh-renderer"
+  composed_renderer:
     radius: ${system.geometry.radius}
     num_samples_per_ray: 512
     context_type: cuda
@@ -77,6 +77,11 @@ system:
       # Prior scale for implicit volume is 0.5 (e.g. geometry.density_blob_std)
       # So we assume the mesh is about the same size
       scale: 0.5
+
+  renderer_type: "nerf-volume-renderer"
+  renderer:
+    radius: ${system.geometry.radius}
+    num_samples_per_ray: 512
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:
