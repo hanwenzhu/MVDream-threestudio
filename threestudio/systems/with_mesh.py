@@ -87,7 +87,7 @@ class WithMesh(BaseLift3DSystem):
         loss = 0.0
 
         # loss of individual object
-        out = self(batch)
+        out = self.renderer(**batch)
         guidance_out = self.guidance(
             out["comp_rgb"], self.prompt_utils, **batch, rgb_as_latents=False
         )
@@ -117,7 +117,7 @@ class WithMesh(BaseLift3DSystem):
                 loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_individual_")])
 
         # loss of composed scene
-        out = self.composed_renderer(batch)
+        out = self.composed_renderer(**batch)
         prompt_utils = self.composed_prompt_processor()
         guidance_out = self.composed_guidance(
             out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False

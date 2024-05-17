@@ -54,11 +54,10 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         transformed = points
         transformed -= torch.as_tensor(self.cfg.geometry_center).to(transformed)
         transformed /= self.cfg.geometry_scale
-        rotation_deg = torch.FloatTensor([self.cfg.geometry_rotation_deg])
-        rotation = rotation_deg * math.pi / 180.0
+        rotation = self.cfg.geometry_rotation_deg * math.pi / 180.0
         transformed = transformed @ torch.as_tensor([
-            [torch.cos(rotation), torch.sin(rotation), 0.0],
-            [-torch.sin(rotation), torch.cos(rotation), 0.0],
+            [math.cos(rotation), math.sin(rotation), 0.0],
+            [-math.sin(rotation), math.cos(rotation), 0.0],
             [0.0, 0.0, 1.0]
         ]).to(transformed)
         return transformed
