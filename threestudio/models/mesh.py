@@ -344,7 +344,7 @@ class Mesh:
         normalize: bool = True,
         scale: Optional[List[float]] = None,
         # Rotation about Z-axis (up)
-        rotation: Optional[float] = None,
+        rotation_deg: Optional[float] = None,
         translation: Optional[List[float]] = None,
         occupancy_resolution: int = 128,
     ) -> Mesh:
@@ -360,8 +360,8 @@ class Mesh:
             mesh.apply_scale(1 / np.linalg.norm(mesh.vertices, axis=1).mean())
         if scale is not None:
             mesh.apply_scale(scale)
-        if rotation is not None:
-            mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation * np.pi / 180.0, [0, 0, 1]))
+        if rotation_deg is not None:
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation_deg * np.pi / 180.0, [0, 0, 1]))
         if translation is not None:
             mesh.apply_translation(translation)
 

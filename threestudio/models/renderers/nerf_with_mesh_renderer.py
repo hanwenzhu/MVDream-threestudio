@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import math
 import nerfacc
 import torch
 import torch.nn.functional as F
@@ -29,7 +30,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
 
         geometry_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
         geometry_scale: float = 1.0
-        geometry_rotation: float = 0.0
+        geometry_rotation_deg: float = 0.0
         geometry_mask: bool = True
 
     cfg: Config
@@ -53,9 +54,11 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         transformed = points
         transformed -= torch.as_tensor(self.cfg.geometry_center).to(transformed)
         transformed /= self.cfg.geometry_scale
+        rotation_deg = torch.FloatTensor([self.cfg.geometry_rotation_deg])
+        rotation = rotation_deg * math.pi / 180.0
         transformed = transformed @ torch.as_tensor([
-            [torch.cos(self.cfg.geometry_rotation), torch.sin(self.cfg.geometry_rotation), 0.0],
-            [-torch.sin(self.cfg.geometry_rotation), torch.cos(self.cfg.geometry_rotation), 0.0],
+            [torch.cos(rotation), torch.sin(rotation), 0.0],
+            [-torch.sin(rotation), torch.cos(rotation), 0.0],
             [0.0, 0.0, 1.0]
         ]).to(transformed)
         return transformed
