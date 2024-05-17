@@ -17,13 +17,14 @@ class WithMesh(BaseLift3DSystem):
     """Trains an object in relation to a given mesh, with the overall scene supervised by DeepFloyd."""
     @dataclass
     class Config(BaseLift3DSystem.Config):
+        composed_renderer_type: str = ""
+        composed_renderer: dict = field(default_factory=dict)
+
         composed_prompt_processor_type: str = ""
         composed_prompt_processor: dict = field(default_factory=dict)
 
         composed_guidance_type: str = ""
         composed_guidance: dict = field(default_factory=dict)
-
-        composed_loss: dict = field(default_factory=dict)
     
     cfg: Config
 
@@ -31,8 +32,12 @@ class WithMesh(BaseLift3DSystem):
         # set up geometry, material, background, renderer
         super().configure()
 
-        if self.cfg.renderer_type != "nerf-with-mesh-renderer":
-            threestudio.warn("system.renderer_type is not nerf-with-mesh-renderer")
+        self.composed_renderer = threestudio.find(self.cfg.composed_renderer_type)(
+            self.cfg.composed_renderer,
+            geometry=self.geometry,
+            material=self.material,
+            background=self.background,
+        )
 
         # TODO this should be in on_fit_start, if not for mvdream
         self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
@@ -64,6 +69,13 @@ class WithMesh(BaseLift3DSystem):
         self.composed_prompt_processor = threestudio.find(
             self.cfg.composed_prompt_processor_type
         )(self.cfg.composed_prompt_processor)
+        self.composed_individual_prompt_processor = threestudio.find(
+            self.cfg.composed_prompt_processor_type
+        )({
+            **self.cfg.composed_prompt_processor,
+            "prompt": self.cfg.prompt_processor["prompt"],
+            "negative_prompt": self.cfg.prompt_processor["negative_prompt"],
+        })
         self.composed_guidance = threestudio.find(self.cfg.composed_guidance_type)(
             self.cfg.composed_guidance
         )
@@ -72,9 +84,10 @@ class WithMesh(BaseLift3DSystem):
         return self.renderer(**batch)
 
     def training_step(self, batch, batch_idx):
-        # loss of individual object
         loss = 0.0
-        out = self({**batch, "render_mesh": False})  # TODO also transform the nerf
+
+        # loss of individual object
+        out = self(batch)
         guidance_out = self.guidance(
             out["comp_rgb"], self.prompt_utils, **batch, rgb_as_latents=False
         )
@@ -93,12 +106,18 @@ class WithMesh(BaseLift3DSystem):
         self.log("train/loss_opaque", loss_opaque)
         loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
 
-        for name, value in self.cfg.loss.items():
-            self.log(f"train_params/{name}", self.C(value))
+        # loss of individual object using deepfloyd (TODO think of better name)
+        prompt_utils = self.composed_individual_prompt_processor()
+        guidance_out = self.composed_guidance(
+            out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
+        )
+        for name, value in guidance_out.items():
+            self.log(f"train/composed_individual_{name}", value)
+            if name.startswith("loss_"):
+                loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_individual_")])
 
         # loss of composed scene
-        composed_loss = 0.0
-        out = self(batch)
+        out = self.composed_renderer(batch)
         prompt_utils = self.composed_prompt_processor()
         guidance_out = self.composed_guidance(
             out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
@@ -107,29 +126,20 @@ class WithMesh(BaseLift3DSystem):
         for name, value in guidance_out.items():
             self.log(f"train/composed_{name}", value)
             if name.startswith("loss_"):
-                composed_loss += value * self.C(self.cfg.composed_loss[name.replace("loss_", "lambda_")])
+                loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_")])
 
-        loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
-        self.log("train/composed_loss_sparsity", loss_sparsity)
-        composed_loss += loss_sparsity * self.C(self.cfg.composed_loss["lambda_sparsity"])
+        loss_intersection = out["intersection"].mean()
+        self.log("train/loss_intersection", loss_intersection)
+        loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
 
-        opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
-        loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
-        self.log("train/composed_loss_opaque", loss_opaque)
-        composed_loss += loss_opaque * self.C(self.cfg.composed_loss["lambda_opaque"])
-
-        for name, value in self.cfg.composed_loss.items():
-            self.log(f"train_params/composed_{name}", self.C(value))
-
-        lambda_composed = self.C(self.cfg.loss["lambda_composed"])
-        loss = (1 - lambda_composed) * loss + lambda_composed * composed_loss
+        for name, value in self.cfg.loss.items():
+            self.log(f"train_params/{name}", self.C(value))
 
         return {"loss": loss}
 
-    # TODO
     def validation_step(self, batch, batch_idx):
         def run_validation(name, batch):
-            out = self(batch)
+            out = self.composed_renderer(batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-{batch['index'][0]}-{name}.png",
                 (
@@ -172,7 +182,7 @@ class WithMesh(BaseLift3DSystem):
 
     def test_step(self, batch, batch_idx):
         def run_test(name, batch):
-            out = self(batch)
+            out = self.composed_renderer(batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
                 (

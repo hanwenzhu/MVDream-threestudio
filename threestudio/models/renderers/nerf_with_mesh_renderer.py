@@ -27,6 +27,11 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         # See Mesh.from_path for options
         mesh: dict = field(default_factory=dict)
 
+        geometry_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        geometry_scale: float = 1.0
+        geometry_rotation: float = 0.0
+        geometry_mask: bool = True
+
     cfg: Config
 
     def configure(
@@ -44,15 +49,34 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
     def focus_to_geometry(
         self, points: Float[Tensor, "*N Di"]
     ) -> Float[Tensor, "*N Di"]:
-        # TODO. This also requires changing update_step behavior
-        return NotImplementedError
         # Transform points for rendering composed scene to focusing on individual object
         transformed = points
-        transformed -= torch.as_tensor(...).to(transformed)
-        transformed /= ... * 2.0
-        if ...:
-            transformed *= torch.as_tensor([-1.0, 1.0, 1.0]).to(transformed)
+        transformed -= torch.as_tensor(self.cfg.geometry_center).to(transformed)
+        transformed /= self.cfg.geometry_scale
+        transformed = transformed @ torch.as_tensor([
+            [torch.cos(self.cfg.geometry_rotation), torch.sin(self.cfg.geometry_rotation), 0.0],
+            [-torch.sin(self.cfg.geometry_rotation), torch.cos(self.cfg.geometry_rotation), 0.0],
+            [0.0, 0.0, 1.0]
+        ]).to(transformed)
         return transformed
+
+    def geometry_forward(
+        self, points: Float[Tensor, "*N Di"], density_only: bool = False, **kwargs
+    ) -> Dict[str, Any]:
+        focused = self.focus_to_geometry(points)
+        if density_only:
+            geo_out = {"density": self.geometry.forward_density(focused, **kwargs)}
+        else:
+            geo_out = self.geometry(focused, **kwargs)
+        if self.cfg.geometry_mask:
+            # Make density 0 if > radius (to prevent density on unrendered points if points are transformed)
+            geo_out["density"][torch.sqrt((focused ** 2).sum(dim=-1))[..., None] > self.geometry.cfg.radius] = 0.0
+        return geo_out
+
+    def geometry_forward_density(
+        self, points: Float[Tensor, "*N Di"]
+    ) -> Float[Tensor, "*N 1"]:
+        return self.geometry_forward(points)["density"]
 
     def forward(
         self,
@@ -88,10 +112,10 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             t_dirs = rays_d_flatten[ray_indices]
             positions = t_origins + t_dirs * t_positions
             if self.training:
-                sigma = self.geometry.forward_density(positions)[..., 0]
+                sigma = self.geometry_forward_density(positions)[..., 0]
             else:
                 sigma = chunk_batch(
-                    self.geometry.forward_density,
+                    self.geometry_forward_density,
                     self.cfg.eval_chunk_size,
                     positions,
                 )[..., 0]
@@ -134,7 +158,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         t_intervals = t_ends - t_starts
 
         if self.training:
-            geo_out = self.geometry(
+            geo_out = self.geometry_forward(
                 positions, output_normal=self.material.requires_normal
             )
             rgb_fg_all = self.material(
@@ -147,7 +171,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             comp_rgb_bg = self.background(dirs=rays_d)
         else:
             geo_out = chunk_batch(
-                self.geometry,
+                self.geometry_forward,
                 self.cfg.eval_chunk_size,
                 positions,
                 output_normal=self.material.requires_normal
@@ -222,8 +246,10 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             ] = 0.0
         else:
             gb_rgb_fg_aa = bg_color.reshape(batch_size * height * width, -1)
-            # Remove points inside mesh
-            weights[self.mesh.contains_points(positions)[..., None]] = 0.0
+            # We can remove points inside mesh by setting
+            #   weights[self.mesh.contains_points(positions)[..., None]] = 0.0
+        
+        intersection = weights[self.mesh.contains_points(positions)[..., None]]
 
         # Step 4: Render implicit volume
         opacity: Float[Tensor, "Nr 1"] = nerfacc.accumulate_along_rays(
@@ -255,6 +281,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             "opacity": opacity.view(batch_size, height, width, 1),
             "depth": depth.view(batch_size, height, width, 1),
             "z_variance": z_variance.view(batch_size, height, width, 1),
+            "intersection": intersection,
         }
 
         if self.training:
@@ -289,7 +316,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                         }
                     )
                 if self.cfg.return_normal_perturb:
-                    normal_perturb = self.geometry(
+                    normal_perturb = self.geometry_forward(
                         positions + torch.randn_like(positions) * 1e-2,
                         output_normal=self.material.requires_normal,
                     )["normal"]
@@ -311,3 +338,18 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                 )
 
         return out
+
+    def update_step(
+        self, epoch: int, global_step: int, on_load_weights: bool = False
+    ) -> None:
+        if self.cfg.grid_prune:
+
+            def occ_eval_fn(x):
+                density = self.geometry_forward_density(x)
+                # approximate for 1 - torch.exp(-density * self.render_step_size) based on taylor series
+                return density * self.render_step_size
+
+            if self.training and not on_load_weights:
+                self.estimator.update_every_n_steps(
+                    step=global_step, occ_eval_fn=occ_eval_fn
+                )

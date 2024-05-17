@@ -36,12 +36,6 @@ system:
     min_step_percent: 0.02
     max_step_percent: 0.98
 
-  composed_loss:
-    lambda_sds: 1.
-    lambda_orient: [0, 10., 1000., 5000]
-    lambda_sparsity: 1.
-    lambda_opaque: 0.
-
   geometry_type: "implicit-volume"
   geometry:
     radius: 1.0
@@ -107,12 +101,14 @@ system:
       project: "threestudio"
 
   loss:
-    lambda_composed: 0.9
+    lambda_composed_sds: 9.
+    lambda_composed_individual_sds: 1.
     lambda_sds: 1.
-    lambda_orient: 0.
-    lambda_sparsity: 0.
+    lambda_orient: [0, 10., 1000., 5000]
+    lambda_sparsity: 1.
     lambda_opaque: 0.
     lambda_z_variance: 0.
+    lambda_intersection: 1000.0
   optimizer:
     name: AdamW
     args:
