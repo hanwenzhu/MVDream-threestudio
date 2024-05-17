@@ -139,7 +139,7 @@ class WithMesh(BaseLift3DSystem):
 
     def validation_step(self, batch, batch_idx):
         def run_validation(name, batch):
-            out = self.composed_renderer(batch)
+            out = self.composed_renderer(**batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-{batch['index'][0]}-{name}.png",
                 (
@@ -182,7 +182,7 @@ class WithMesh(BaseLift3DSystem):
 
     def test_step(self, batch, batch_idx):
         def run_test(name, batch):
-            out = self.composed_renderer(batch)
+            out = self.composed_renderer(**batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
                 (
