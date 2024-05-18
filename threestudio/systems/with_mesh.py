@@ -128,7 +128,7 @@ class WithMesh(BaseLift3DSystem):
             if name.startswith("loss_"):
                 loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_")])
 
-        loss_intersection = out["intersection"].mean()
+        loss_intersection = out["intersection"].sum()
         self.log("train/loss_intersection", loss_intersection)
         loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
 

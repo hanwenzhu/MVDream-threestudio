@@ -227,6 +227,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             gb_rgb_fg, _ = self.ctx.interpolate_one(self.mesh.v_rgb, rast, self.mesh.t_pos_idx)
 
             # Add mesh rendering RGB to background and then the implicit volume RGB
+            # FIXME: antialias should not be here; it should be on the final RGB
             gb_rgb = torch.lerp(bg_color, gb_rgb_fg, mask.float())
             gb_rgb_fg_aa = self.ctx.antialias(gb_rgb, rast, v_pos_clip, self.mesh.t_pos_idx)
             gb_rgb_fg_aa = gb_rgb_fg_aa.reshape(batch_size * height * width, -1)
