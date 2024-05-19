@@ -78,7 +78,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
     def geometry_forward_density(
         self, points: Float[Tensor, "*N Di"]
     ) -> Float[Tensor, "*N 1"]:
-        return self.geometry_forward(points)["density"]
+        return self.geometry_forward(points, density_only=True)["density"]
 
     def forward(
         self,

@@ -73,8 +73,8 @@ class WithMesh(BaseLift3DSystem):
             self.cfg.composed_prompt_processor_type
         )({
             **self.cfg.composed_prompt_processor,
-            "prompt": self.cfg.prompt_processor["prompt"],
-            "negative_prompt": self.cfg.prompt_processor["negative_prompt"],
+            "prompt": self.prompt_processor.prompt,
+            "negative_prompt": self.prompt_processor.negative_prompt,
         })
         self.composed_guidance = threestudio.find(self.cfg.composed_guidance_type)(
             self.cfg.composed_guidance
