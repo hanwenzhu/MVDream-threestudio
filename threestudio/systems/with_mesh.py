@@ -138,8 +138,8 @@ class WithMesh(BaseLift3DSystem):
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
-        def run_validation(name, batch):
-            out = self.composed_renderer(**batch)
+        def run_validation(name, batch, renderer):
+            out = renderer(**batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-{batch['index'][0]}-{name}.png",
                 (
@@ -174,15 +174,16 @@ class WithMesh(BaseLift3DSystem):
                 name=f"validation_step-{name}",
                 step=self.true_global_step,
             )
-        run_validation("no_mesh", {**batch, "render_mesh": False})
-        run_validation("with_mesh", batch)
+        run_validation("obj", batch, self.renderer)
+        run_validation("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
+        run_validation("with_mesh", batch, self.composed_renderer)
 
     def on_validation_epoch_end(self):
         pass
 
     def test_step(self, batch, batch_idx):
-        def run_test(name, batch):
-            out = self.composed_renderer(**batch)
+        def run_test(name, batch, renderer):
+            out = renderer(**batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
                 (
@@ -217,8 +218,9 @@ class WithMesh(BaseLift3DSystem):
                 name=f"test_step-{name}",
                 step=self.true_global_step,
             )
-        run_test("no_mesh", {**batch, "render_mesh": False})
-        run_test("with_mesh", batch)
+        run_test("obj", batch, self.renderer)
+        run_test("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
+        run_test("with_mesh", batch, self.composed_renderer)
 
     def on_test_epoch_end(self):
         for name in ("no_mesh", "with_mesh"):

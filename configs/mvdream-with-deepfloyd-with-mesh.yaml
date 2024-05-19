@@ -23,19 +23,6 @@ data:
 
 system_type: "with-mesh"
 system:
-  composed_prompt_processor_type: "deep-floyd-prompt-processor"
-  composed_prompt_processor:
-    pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
-    prompt: ???
-  
-  composed_guidance_type: "deep-floyd-guidance"
-  composed_guidance:
-    pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
-    weighting_strategy: uniform
-    guidance_scale: 20.
-    min_step_percent: 0.02
-    max_step_percent: 0.98
-
   geometry_type: "implicit-volume"
   geometry:
     radius: 1.0
@@ -65,19 +52,6 @@ system:
     random_aug: true
     share_aug_bg: true
 
-  composed_renderer_type: "nerf-with-mesh-renderer"
-  composed_renderer:
-    radius: ${system.geometry.radius}
-    num_samples_per_ray: 512
-    context_type: cuda
-    mesh_path: ???
-    mesh:
-      y_up: True
-      normalize: True
-      # Prior scale for implicit volume is 0.5 (e.g. geometry.density_blob_std)
-      # So we assume the mesh is about the same size
-      scale: 0.5
-
   renderer_type: "nerf-volume-renderer"
   renderer:
     radius: ${system.geometry.radius}
@@ -99,6 +73,32 @@ system:
     max_step_percent: [0, 0.98, 0.50, 8000]  # (start_iter, start_val, end_val, end_iter)
     recon_loss: true
     recon_std_rescale: 0.5
+
+  composed_renderer_type: "nerf-with-mesh-renderer"
+  composed_renderer:
+    radius: ${system.geometry.radius}
+    num_samples_per_ray: 512
+    context_type: cuda
+    mesh_path: ???
+    mesh:
+      y_up: True
+      normalize: True
+      # Prior scale for implicit volume is 0.5 (e.g. geometry.density_blob_std)
+      # So we assume the mesh is about the same size
+      scale: 0.5
+
+  composed_prompt_processor_type: "deep-floyd-prompt-processor"
+  composed_prompt_processor:
+    pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
+    prompt: ???
+  
+  composed_guidance_type: "deep-floyd-guidance"
+  composed_guidance:
+    pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
+    weighting_strategy: uniform
+    guidance_scale: 20.
+    min_step_percent: 0.02
+    max_step_percent: 0.98
 
   loggers:
     wandb:
