@@ -199,6 +199,8 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                 bg_color = bg_color.unsqueeze(1).unsqueeze(1)
                 #        -> [bs, height, width, 3]):
                 bg_color = bg_color.expand(-1, height, width, -1)
+        
+        intersection = geo_out["density"][self.mesh.contains_points(positions)[..., None]]
 
         weights: Float[Tensor, "Nr 1"]
         weights_, _, _ = nerfacc.render_weight_from_density(
@@ -209,7 +211,6 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             n_rays=n_rays,
         )
         weights = weights_[..., None]
-
 
         # Step 2: Render mesh and add to background
         if render_mesh:
@@ -251,8 +252,6 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             gb_rgb_fg_aa = bg_color.reshape(batch_size * height * width, -1)
             # We can remove points inside mesh by setting
             #   weights[self.mesh.contains_points(positions)[..., None]] = 0.0
-        
-        intersection = weights[self.mesh.contains_points(positions)[..., None]]
 
         # Step 4: Render implicit volume
         opacity: Float[Tensor, "Nr 1"] = nerfacc.accumulate_along_rays(

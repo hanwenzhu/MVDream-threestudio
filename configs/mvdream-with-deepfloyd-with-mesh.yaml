@@ -113,7 +113,7 @@ system:
     lambda_sparsity: 1.
     lambda_opaque: 0.
     lambda_z_variance: 0.
-    lambda_intersection: 1000.0
+    lambda_intersection: 1.
   optimizer:
     name: AdamW
     args:
