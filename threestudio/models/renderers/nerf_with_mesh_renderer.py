@@ -199,8 +199,11 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                 bg_color = bg_color.unsqueeze(1).unsqueeze(1)
                 #        -> [bs, height, width, 3]):
                 bg_color = bg_color.expand(-1, height, width, -1)
-        
-        intersection = geo_out["density"][self.mesh.contains_points(positions)[..., None]]
+
+        intersection = (
+            geo_out["density"][self.mesh.contains_points(positions)[..., None]]
+            / geo_out["density"].numel()
+        )
 
         weights: Float[Tensor, "Nr 1"]
         weights_, _, _ = nerfacc.render_weight_from_density(
