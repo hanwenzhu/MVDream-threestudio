@@ -231,10 +231,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             gb_rgb_fg, _ = self.ctx.interpolate_one(self.mesh.v_rgb, rast, self.mesh.t_pos_idx)
 
             # Add mesh rendering RGB to background and then the implicit volume RGB
-            # FIXME: antialias should not be here; it should be on the final RGB
             gb_rgb = torch.lerp(bg_color, gb_rgb_fg, mask.float())
-            gb_rgb_fg_aa = self.ctx.antialias(gb_rgb, rast, v_pos_clip, self.mesh.t_pos_idx)
-            gb_rgb_fg_aa = gb_rgb_fg_aa.reshape(batch_size * height * width, -1)
 
             # Step 3: Zero the weights where the implicit volume is occluded by the mesh
             gb_distances = torch.linalg.norm(
@@ -252,7 +249,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                 (distances >= gb_distances[ray_indices])  # mesh is closer than the sampling point
             ] = 0.0
         else:
-            gb_rgb_fg_aa = bg_color.reshape(batch_size * height * width, -1)
+            gb_rgb = bg_color
             # We can remove points inside mesh by setting
             #   weights[self.mesh.contains_points(positions)[..., None]] = 0.0
 
@@ -276,8 +273,11 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             n_rays=n_rays,
         )
 
-        # Step 5: Add the rendered implicit volume to the rendered mesh
-        comp_rgb = comp_rgb_fg + gb_rgb_fg_aa * (1.0 - opacity)
+        # Step 5: Add the rendered implicit volume to the rendered mesh and perform antialias
+        comp_rgb = self.ctx.antialias(
+            comp_rgb_fg.reshape(batch_size, height, width, -1) + gb_rgb * (1.0 - opacity),
+            rast, v_pos_clip, self.mesh.t_pos_idx
+        ).reshape(batch_size * height * width, -1)
 
         out = {
             "comp_rgb": comp_rgb.view(batch_size, height, width, -1),
