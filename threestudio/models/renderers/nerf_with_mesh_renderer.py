@@ -275,7 +275,10 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
 
         # Step 5: Add the rendered implicit volume to the rendered mesh and perform antialias
         comp_rgb = self.ctx.antialias(
-            comp_rgb_fg.reshape(batch_size, height, width, -1) + gb_rgb * (1.0 - opacity),
+            # Nerf RGB foreground
+            comp_rgb_fg.reshape(batch_size, height, width, -1)
+            # Mesh RGB + background scaled by opacity
+            + gb_rgb * (1.0 - opacity.reshape(batch_size, height, width, -1)),
             rast, v_pos_clip, self.mesh.t_pos_idx
         ).reshape(batch_size * height * width, -1)
 
