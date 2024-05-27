@@ -184,6 +184,7 @@ class WithMesh(BaseLift3DSystem):
     def test_step(self, batch, batch_idx):
         def run_test(name, batch, renderer):
             out = renderer(**batch)
+            self.save_data(batch, f"it{self.true_global_step}-test-{name}-metadata/{batch['index'][0]}.npz")
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
                 (
@@ -223,7 +224,7 @@ class WithMesh(BaseLift3DSystem):
         run_test("with_mesh", batch, self.composed_renderer)
 
     def on_test_epoch_end(self):
-        for name in ("no_mesh", "with_mesh"):
+        for name in ("obj", "no_mesh", "with_mesh"):
             self.save_img_sequence(
                 f"it{self.true_global_step}-test-{name}",
                 f"it{self.true_global_step}-test-{name}",
