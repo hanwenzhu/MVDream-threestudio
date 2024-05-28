@@ -308,7 +308,7 @@ class Mesh:
         loss = loss.mean()
         return loss
 
-    def contains_points(self, points: Float[Tensor, "*N 3"]) -> Float[Tensor, "*N"]:
+    def contains_points(self, points: Float[Tensor, "*N 3"]) -> Bool[Tensor, "*N"]:
         if "bounds" not in self.extras or "occupancies" not in self.extras:
             # TODO, convert to trimesh and calculate bounds and occupancies like in from_path
             raise NotImplementedError

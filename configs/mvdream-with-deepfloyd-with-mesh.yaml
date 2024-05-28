@@ -114,6 +114,7 @@ system:
     lambda_opaque: 0.
     lambda_z_variance: 0.
     lambda_intersection: 1.
+    lambda_mesh_occlusion: .1
   optimizer:
     name: AdamW
     args:

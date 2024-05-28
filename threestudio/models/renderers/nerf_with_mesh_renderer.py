@@ -201,8 +201,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
                 bg_color = bg_color.expand(-1, height, width, -1)
 
         intersection = (
-            geo_out["density"][self.mesh.contains_points(positions)[..., None]]
-            / geo_out["density"].numel()
+            geo_out["density"] * self.mesh.contains_points(positions)[..., None]
         )
 
         weights: Float[Tensor, "Nr 1"]
@@ -286,6 +285,11 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             )
         comp_rgb = comp_rgb.reshape(batch_size * height * width, -1)
 
+        # Calculate proportion of mesh occluded
+        mesh_occlusion = (
+            opacity.reshape(batch_size, height, width, -1)[mask]
+        )
+
         out = {
             "comp_rgb": comp_rgb.view(batch_size, height, width, -1),
             "comp_rgb_fg": comp_rgb_fg.view(batch_size, height, width, -1),
@@ -294,6 +298,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             "depth": depth.view(batch_size, height, width, 1),
             "z_variance": z_variance.view(batch_size, height, width, 1),
             "intersection": intersection,
+            "mesh_occlusion": mesh_occlusion,
         }
 
         if self.training:
