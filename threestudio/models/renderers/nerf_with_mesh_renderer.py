@@ -249,6 +249,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             ] = 0.0
         else:
             gb_rgb = bg_color
+            mask = torch.zeros((batch_size, height, width, 1), dtype=torch.bool)
             # We can remove points inside mesh by setting
             #   weights[self.mesh.contains_points(positions)[..., None]] = 0.0
 
