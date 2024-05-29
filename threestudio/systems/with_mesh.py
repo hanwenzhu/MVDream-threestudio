@@ -132,7 +132,7 @@ class WithMesh(BaseLift3DSystem):
         self.log("train/loss_intersection", loss_intersection)
         loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
 
-        loss_mesh_occlusion = (out["mesh_occlusion"] ** 2 + 0.01).sqrt().mean()
+        loss_mesh_occlusion = (out["mesh_occlusion"] ** 2 + 1.0).sqrt().mean()
         self.log("train/loss_mesh_occlusion", loss_mesh_occlusion)
         loss += loss_mesh_occlusion * self.C(self.cfg.loss["lambda_mesh_occlusion"])
 

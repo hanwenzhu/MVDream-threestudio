@@ -345,6 +345,8 @@ class Mesh:
         scale: Optional[List[float]] = None,
         # Rotation about Z-axis (up)
         rotation_deg: Optional[float] = None,
+        # Rotation about X-axis
+        tilt_deg: Optional[float] = None,
         translation: Optional[List[float]] = None,
         occupancy_resolution: int = 128,
     ) -> Mesh:
@@ -362,6 +364,8 @@ class Mesh:
             mesh.apply_scale(scale)
         if rotation_deg is not None:
             mesh.apply_transform(trimesh.transformations.rotation_matrix(rotation_deg * np.pi / 180.0, [0, 0, 1]))
+        if tilt_deg is not None:
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(tilt_deg * np.pi / 180.0, [1, 0, 0]))
         if translation is not None:
             mesh.apply_translation(translation)
 
