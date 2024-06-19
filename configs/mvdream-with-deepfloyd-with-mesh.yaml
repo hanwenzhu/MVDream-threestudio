@@ -18,6 +18,7 @@ data:
   center_perturb: 0.
   up_perturb: 0.
   n_val_views: 4
+  n_test_views: 360
   eval_camera_distance: 3.0
   eval_fovy_deg: 40.
 
