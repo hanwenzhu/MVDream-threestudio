@@ -188,7 +188,7 @@ class WithMesh(BaseLift3DSystem):
     def test_step(self, batch, batch_idx):
         def run_test(name, batch, renderer):
             out = renderer(**batch)
-            self.save_data(batch, f"it{self.true_global_step}-test-{name}-metadata/{batch['index'][0]}.npz")
+            self.save_data(f"it{self.true_global_step}-test-{name}-metadata/{batch['index'][0]}.npz", batch)
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
                 (
