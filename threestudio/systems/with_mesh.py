@@ -189,9 +189,14 @@ class WithMesh(BaseLift3DSystem):
     def test_step(self, batch, batch_idx):
         def run_test(name, batch, renderer):
             out = renderer(**batch)
+            def to_numpy(data):
+                if isinstance(data, torch.Tensor):
+                    return data.detach().cpu().numpy()
+                else:
+                    return np.asarray(data)
             self.save_data(
                 f"it{self.true_global_step}-test-{name}-metadata/{batch['index'][0]}.npz",
-                {key: np.asarray(data) for key, data in batch.items()}
+                {key: to_numpy(data) for key, data in batch.items()}
             )
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
