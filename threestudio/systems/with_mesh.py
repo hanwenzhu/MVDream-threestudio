@@ -196,7 +196,24 @@ class WithMesh(BaseLift3DSystem):
                     return np.asarray(data)
             self.save_data(
                 f"it{self.true_global_step}-test-{name}-metadata/{batch['index'][0]}.npz",
-                {key: to_numpy(data) for key, data in batch.items()}
+                # Ignoring rays_d and rays_o to save space
+                {key: to_numpy(data) for key, data in batch.items() if not key.startswith("rays_")}
+            )
+            self.save_image_grid(
+                f"it{self.true_global_step}-test-{name}-rgb/{batch['index'][0]}.png",
+                (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["comp_rgb"][0],
+                            "kwargs": {"data_format": "HWC"},
+                        },
+                    ]
+                    if "comp_rgb" in out
+                    else []
+                ),
+                name=f"test_step-{name}-rgb",
+                step=self.true_global_step,
             )
             self.save_image_grid(
                 f"it{self.true_global_step}-test-{name}/{batch['index'][0]}.png",
