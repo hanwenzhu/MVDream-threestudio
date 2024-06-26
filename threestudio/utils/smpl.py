@@ -83,7 +83,7 @@ class SMPLModel(Module):
         self.kintree_table = params["kintree_table"]
         self.register_buffer(
             "faces",
-            torch.from_numpy(params["f"]).long()
+            torch.from_numpy(params["f"].astype(np.int64)).long()
         )
 
     @staticmethod
