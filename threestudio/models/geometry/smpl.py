@@ -111,7 +111,7 @@ class SMPL(BaseExplicitGeometry):
         if self.cfg.vertex_color_file is not None:
             self.register_buffer(
                 "vertex_color",
-                torch.as_tensor(np.load(self.cfg.vertex_color_file))
+                torch.as_tensor(np.load(self.cfg.vertex_color_file).astype(np.float32)) / 255.
             )
         else:
             self.vertex_color = None

@@ -423,8 +423,8 @@ class RandomCameraDataset(Dataset):
         self.c2w = c2w
         self.camera_positions = camera_positions
         self.light_positions = light_positions
-        self.elevation, self.azimuth = elevation, azimuth
-        self.elevation_deg, self.azimuth_deg = elevation_deg, azimuth_deg
+        self.elevation, self.azimuth, self.fovy = elevation, azimuth, fovy
+        self.elevation_deg, self.azimuth_deg, self.fovy_deg = elevation_deg, azimuth_deg, fovy_deg
         self.camera_distances = camera_distances
 
     def __len__(self):
@@ -441,6 +441,7 @@ class RandomCameraDataset(Dataset):
             "light_positions": self.light_positions[index],
             "elevation": self.elevation_deg[index],
             "azimuth": self.azimuth_deg[index],
+            "fovy": self.fovy_deg[index],
             "camera_distances": self.camera_distances[index],
             "height": self.cfg.eval_height,
             "width": self.cfg.eval_width,
