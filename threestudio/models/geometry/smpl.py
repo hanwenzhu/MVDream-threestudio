@@ -63,7 +63,7 @@ class SMPL(BaseExplicitGeometry):
         self.pose: Float[Tensor, "72"]
 
         location_register = (
-            self.register_buffer if self.fix_location else self.register_parameter
+            self.register_buffer if self.cfg.fix_location else self.register_parameter
         )
         location_register(
             "translation",
