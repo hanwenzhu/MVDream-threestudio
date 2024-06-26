@@ -109,18 +109,3 @@ class SMPLWithMeshRenderer(SMPLRenderer):
         }
 
         return out
-
-    def update_step(
-        self, epoch: int, global_step: int, on_load_weights: bool = False
-    ) -> None:
-        if self.cfg.grid_prune:
-
-            def occ_eval_fn(x):
-                density = self.geometry_forward_density(x)
-                # approximate for 1 - torch.exp(-density * self.render_step_size) based on taylor series
-                return density * self.render_step_size
-
-            if self.training and not on_load_weights:
-                self.estimator.update_every_n_steps(
-                    step=global_step, occ_eval_fn=occ_eval_fn
-                )
