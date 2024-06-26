@@ -86,6 +86,7 @@ class SMPLWithMeshRenderer(SMPLRenderer):
         )
         rast, _ = self.ctx.rasterize(v_pos_clip, mesh.t_pos_idx, (height, width))
         mask = rast[..., 3:] > 0
+        mask_aa = self.ctx.antialias(mask.float(), rast, v_pos_clip, mesh.t_pos_idx)
         
         # We could generate color from self.geometry and self.material (as in nvdiff_rasterizer.py)
         # Instead we generate color directly from mesh information v_rgb
@@ -102,7 +103,7 @@ class SMPLWithMeshRenderer(SMPLRenderer):
             "comp_rgb": gb_rgb_aa,
             "comp_rgb_fg": gb_rgb_fg,
             "comp_rgb_bg": gb_rgb_bg,
-            "opacity": 0.0,  # TODO
+            "opacity": mask_aa,
             "depth": 0.0,  # TODO
             "z_variance": 0.0,  # TODO
             "intersection": 0.0,  # TODO
