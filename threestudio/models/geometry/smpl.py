@@ -87,11 +87,11 @@ class SMPL(BaseExplicitGeometry):
             if self.cfg.smpl_init_from.endswith(".pkl"):
                 with open(self.cfg.smpl_init_from, "rb") as init_file:
                     init_data = pickle.load(init_file)
-                    self.translation.copy_(torch.as_tensor(init_data["global_body_translation"]))
-                    self.scale.copy_(torch.as_tensor(init_data["body_scale"][0]))
+                    self.translation.data = torch.as_tensor(init_data["global_body_translation"])
+                    self.scale.data = torch.as_tensor(init_data["body_scale"][0])
                     # "global_orient" (?)
-                    self.shape.copy_(torch.as_tensor(init_data["betas"][0]))
-                    self.pose.copy_(torch.as_tensor(init_data["body_pose"][0]))
+                    self.shape.data = torch.as_tensor(init_data["betas"][0])
+                    self.pose.data = torch.as_tensor(init_data["body_pose"][0])
             else:
                 raise NotImplementedError
         
