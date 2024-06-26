@@ -58,6 +58,9 @@ class SMPLWithMeshRenderer(SMPLRenderer):
 
         # Merge SMPL mesh and self.mesh
         smpl_mesh = self.geometry.isosurface()
+        if smpl_mesh.v_rgb is None:
+            # TODO
+            smpl_mesh.set_vertex_color(torch.zeros_like(smpl_mesh.v_pos))
         if render_mesh:
             v_pos = torch.cat([
                 smpl_mesh.v_pos, self.mesh.v_pos
@@ -68,8 +71,6 @@ class SMPLWithMeshRenderer(SMPLRenderer):
                 self.mesh.t_pos_idx + smpl_mesh.v_pos.shape[0]
             ], dim=0)
             mesh = Mesh(v_pos, t_pos_idx)
-            if smpl_mesh.v_rgb is None:
-                smpl_mesh.set_vertex_color(torch.zeros_like(smpl_mesh.v_pos))
             mesh.set_vertex_color(
                 torch.cat([
                     smpl_mesh.v_rgb, self.mesh.v_rgb
