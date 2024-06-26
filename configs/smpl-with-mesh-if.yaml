@@ -36,9 +36,9 @@ system:
 
   composed_only: true
 
-  # renderer_type: "smpl-renderer"
-  # renderer:
-  #   context_type: cuda
+  renderer_type: "smpl-renderer"
+  renderer:
+    context_type: cuda
 
   # prompt_processor_type: "stable-diffusion-prompt-processor"
   # prompt_processor:
