@@ -18,6 +18,8 @@ class WithMesh(BaseLift3DSystem):
     """Trains an object in relation to a given mesh, with the overall scene supervised by DeepFloyd."""
     @dataclass
     class Config(BaseLift3DSystem.Config):
+        composed_only: bool = False
+
         composed_renderer_type: str = ""
         composed_renderer: dict = field(default_factory=dict)
 
@@ -40,17 +42,18 @@ class WithMesh(BaseLift3DSystem):
             background=self.background,
         )
 
-        # TODO this should be in on_fit_start, if not for mvdream
-        self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
-        if self.cfg.guidance_type == "multiview-diffusion-guidance":
-            self.guidance.requires_grad_(False)
-        self.prompt_processor = threestudio.find(self.cfg.prompt_processor_type)(
-            self.cfg.prompt_processor
-        )
-        self.prompt_utils = self.prompt_processor()
+        if not self.cfg.composed_only:
+            # TODO this should be in on_fit_start, if not for mvdream
+            self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
+            if self.cfg.guidance_type == "multiview-diffusion-guidance":
+                self.guidance.requires_grad_(False)
+            self.prompt_processor = threestudio.find(self.cfg.prompt_processor_type)(
+                self.cfg.prompt_processor
+            )
+            self.prompt_utils = self.prompt_processor()
 
     def on_load_checkpoint(self, checkpoint):
-        if self.cfg.guidance_type == "multiview-diffusion-guidance":
+        if not self.cfg.composed_only and self.cfg.guidance_type == "multiview-diffusion-guidance":
             for k in list(checkpoint['state_dict'].keys()):
                 if k.startswith("guidance."):
                     return
@@ -59,7 +62,7 @@ class WithMesh(BaseLift3DSystem):
             return
 
     def on_save_checkpoint(self, checkpoint):
-        if self.cfg.guidance_type == "multiview-diffusion-guidance":
+        if not self.cfg.composed_only and self.cfg.guidance_type == "multiview-diffusion-guidance":
             for k in list(checkpoint['state_dict'].keys()):
                 if k.startswith("guidance."):
                     checkpoint['state_dict'].pop(k)
@@ -70,13 +73,14 @@ class WithMesh(BaseLift3DSystem):
         self.composed_prompt_processor = threestudio.find(
             self.cfg.composed_prompt_processor_type
         )(self.cfg.composed_prompt_processor)
-        self.composed_individual_prompt_processor = threestudio.find(
-            self.cfg.composed_prompt_processor_type
-        )({
-            **self.cfg.composed_prompt_processor,
-            "prompt": self.prompt_processor.prompt,
-            "negative_prompt": self.prompt_processor.negative_prompt,
-        })
+        if not self.cfg.composed_only:
+            self.composed_individual_prompt_processor = threestudio.find(
+                self.cfg.composed_prompt_processor_type
+            )({
+                **self.cfg.composed_prompt_processor,
+                "prompt": self.prompt_processor.prompt,
+                "negative_prompt": self.prompt_processor.negative_prompt,
+            })
         self.composed_guidance = threestudio.find(self.cfg.composed_guidance_type)(
             self.cfg.composed_guidance
         )
@@ -87,35 +91,36 @@ class WithMesh(BaseLift3DSystem):
     def training_step(self, batch, batch_idx):
         loss = 0.0
 
-        # loss of individual object
-        out = self.renderer(**batch)
-        guidance_out = self.guidance(
-            out["comp_rgb"], self.prompt_utils, **batch, rgb_as_latents=False
-        )
+        if not self.cfg.composed_only:
+            # loss of individual object
+            out = self.renderer(**batch)
+            guidance_out = self.guidance(
+                out["comp_rgb"], self.prompt_utils, **batch, rgb_as_latents=False
+            )
 
-        for name, value in guidance_out.items():
-            self.log(f"train/{name}", value)
-            if name.startswith("loss_"):
-                loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
+            for name, value in guidance_out.items():
+                self.log(f"train/{name}", value)
+                if name.startswith("loss_"):
+                    loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
 
-        loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
-        self.log("train/loss_sparsity", loss_sparsity)
-        loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
+            loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
+            self.log("train/loss_sparsity", loss_sparsity)
+            loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
 
-        opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
-        loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
-        self.log("train/loss_opaque", loss_opaque)
-        loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
+            opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
+            loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
+            self.log("train/loss_opaque", loss_opaque)
+            loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
 
-        # loss of individual object using deepfloyd (TODO think of better name)
-        prompt_utils = self.composed_individual_prompt_processor()
-        guidance_out = self.composed_guidance(
-            out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
-        )
-        for name, value in guidance_out.items():
-            self.log(f"train/composed_individual_{name}", value)
-            if name.startswith("loss_"):
-                loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_individual_")])
+            # loss of individual object using deepfloyd (TODO think of better name)
+            prompt_utils = self.composed_individual_prompt_processor()
+            guidance_out = self.composed_guidance(
+                out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
+            )
+            for name, value in guidance_out.items():
+                self.log(f"train/composed_individual_{name}", value)
+                if name.startswith("loss_"):
+                    loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_individual_")])
 
         # loss of composed scene
         out = self.composed_renderer(**batch)
@@ -129,13 +134,15 @@ class WithMesh(BaseLift3DSystem):
             if name.startswith("loss_"):
                 loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_composed_")])
 
-        loss_intersection = (out["intersection"] ** 2 + 0.01).sqrt().mean()
-        self.log("train/loss_intersection", loss_intersection)
-        loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
+        if "lambda_intersection" in self.cfg.loss:
+            loss_intersection = (out["intersection"] ** 2 + 0.01).sqrt().mean()
+            self.log("train/loss_intersection", loss_intersection)
+            loss += loss_intersection * self.C(self.cfg.loss["lambda_intersection"])
 
-        loss_mesh_occlusion = (out["mesh_occlusion"] ** 2 + 1.0).sqrt().mean()
-        self.log("train/loss_mesh_occlusion", loss_mesh_occlusion)
-        loss += loss_mesh_occlusion * self.C(self.cfg.loss["lambda_mesh_occlusion"])
+        if "lambda_mesh_occlusion" in self.cfg.loss:
+            loss_mesh_occlusion = (out["mesh_occlusion"] ** 2 + 1.0).sqrt().mean()
+            self.log("train/loss_mesh_occlusion", loss_mesh_occlusion)
+            loss += loss_mesh_occlusion * self.C(self.cfg.loss["lambda_mesh_occlusion"])
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
@@ -179,7 +186,8 @@ class WithMesh(BaseLift3DSystem):
                 name=f"validation_step-{name}",
                 step=self.true_global_step,
             )
-        run_validation("obj", batch, self.renderer)
+        if not self.cfg.composed_only:
+            run_validation("obj", batch, self.renderer)
         run_validation("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
         run_validation("with_mesh", batch, self.composed_renderer)
 
@@ -249,12 +257,17 @@ class WithMesh(BaseLift3DSystem):
                 name=f"test_step-{name}",
                 step=self.true_global_step,
             )
-        run_test("obj", batch, self.renderer)
+        if not self.cfg.composed_only:
+            run_test("obj", batch, self.renderer)
         run_test("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
         run_test("with_mesh", batch, self.composed_renderer)
 
     def on_test_epoch_end(self):
-        for name in ("obj", "no_mesh", "with_mesh"):
+        names = (
+            ("no_mesh", "with_mesh") if self.cfg.composed_only else
+            ("obj", "no_mesh", "with_mesh")
+        )
+        for name in names:
             self.save_img_sequence(
                 f"it{self.true_global_step}-test-{name}",
                 f"it{self.true_global_step}-test-{name}",
