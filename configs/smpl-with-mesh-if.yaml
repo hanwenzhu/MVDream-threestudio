@@ -18,7 +18,8 @@ system_type: "with-mesh"
 system:
   geometry_type: "smpl"
   geometry:
-    geometry_only: true
+    use_feature_network: false
+    fix_vertex_color: false
     fix_location: false
     smpl_init_from: ???
     smpl_model_path: "smplx/models/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl"
