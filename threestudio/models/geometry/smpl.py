@@ -115,7 +115,9 @@ class SMPL(BaseExplicitGeometry):
             )
             color_register(
                 "vertex_color",
-                torch.as_tensor(np.load(self.cfg.vertex_color_file).astype(np.float32)) / 255.
+                nn.Parameter(
+                    torch.from_numpy(np.load(self.cfg.vertex_color_file).astype(np.float32)) / 255.
+                )
             )
         else:
             self.vertex_color = None
