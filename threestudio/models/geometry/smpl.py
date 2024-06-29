@@ -44,8 +44,9 @@ class SMPL(BaseExplicitGeometry):
                 "n_hidden_layers": 1,
             }
         )
-        geometry_only: bool = True
+        use_feature_network: bool = False
         vertex_color_file: Optional[str] = None
+        fix_vertex_color: bool = False
         fix_location: bool = False
 
         smpl_init_from: Optional[str] = None
@@ -97,7 +98,7 @@ class SMPL(BaseExplicitGeometry):
         
         self.smpl_model = SMPLModel(model_path=self.cfg.smpl_model_path)
 
-        if not self.cfg.geometry_only:
+        if self.cfg.use_feature_network:
             self.encoding = get_encoding(
                 self.cfg.n_input_dims, self.cfg.pos_encoding_config
             )
@@ -109,7 +110,10 @@ class SMPL(BaseExplicitGeometry):
 
         self.vertex_color: Optional[Float[Tensor, "Nv 3"]]
         if self.cfg.vertex_color_file is not None:
-            self.register_buffer(
+            color_register = (
+                self.register_buffer if self.cfg.fix_vertex_color else self.register_parameter
+            )
+            color_register(
                 "vertex_color",
                 torch.as_tensor(np.load(self.cfg.vertex_color_file).astype(np.float32)) / 255.
             )
@@ -132,7 +136,7 @@ class SMPL(BaseExplicitGeometry):
     def forward(
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False
     ) -> Dict[str, Float[Tensor, "..."]]:
-        if self.cfg.geometry_only:
+        if not self.cfg.use_feature_network:
             return {}
         assert (
             output_normal == False
@@ -159,12 +163,15 @@ class SMPL(BaseExplicitGeometry):
             instance.scale.data = other.scale.data.clone()
             instance.shape.data = other.shape.data.clone()
             instance.pose.data = other.pose.data.clone()
+
+            if not instance.cfg.fix_vertex_color:
+                instance.vertex_color.data = other.vertex_color.data.clone()
         # else:
         #     raise TypeError(
         #         f"Cannot create {SMPL.__name__} from {other.__class__.__name__}"
         #     )
 
-        if not instance.cfg.geometry_only and copy_net:
+        if instance.cfg.use_feature_network and copy_net:
             instance.encoding.load_state_dict(other.encoding.state_dict())
             instance.feature_network.load_state_dict(
                 other.feature_network.state_dict()
@@ -173,7 +180,7 @@ class SMPL(BaseExplicitGeometry):
 
     def export(self, points: Float[Tensor, "*N Di"], **kwargs) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
-        if self.cfg.geometry_only or self.cfg.n_feature_dims == 0:
+        if not self.cfg.use_feature_network or self.cfg.n_feature_dims == 0:
             return out
         points_unscaled = points
         points = contract_to_unisphere(points_unscaled, self.bbox)
