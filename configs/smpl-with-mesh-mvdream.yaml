@@ -1,0 +1,135 @@
+name: "smpl-with-mesh-if"
+tag: "${rmspace:${system.prompt_processor.prompt},_}"
+exp_root_dir: "outputs"
+seed: 0
+
+data_type: "random-multiview-camera-datamodule"
+data:
+  batch_size: [4]
+  n_view: 4
+  width: [512]
+  height: [512]
+  camera_distance_range: [0.8, 1.0] # relative
+  fovy_range: [15, 60]
+  elevation_range: [0, 30]
+  camera_perturb: 0.
+  center_perturb: 0.
+  up_perturb: 0.
+  n_val_views: 4
+  n_test_views: 360
+  eval_camera_distance: 3.0
+  eval_fovy_deg: 40.
+
+system_type: "with-mesh"
+system:
+  geometry_type: "smpl"
+  geometry:
+    use_feature_network: false
+    fix_vertex_color: false
+    fix_location: false
+    smpl_init_from: ???
+    smpl_model_path: "smplx/models/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl"
+
+  material_type: "no-material"
+  material:
+    n_output_dims: 3
+    color_activation: sigmoid
+
+  background_type: "neural-environment-map-background"
+  background:
+    color_activation: sigmoid
+    random_aug: true
+    share_aug_bg: true
+    mlp_network_config:
+      otype: VanillaMLP
+      activation: ReLU
+      n_neurons: 5
+      n_hidden_layers: 1
+
+  composed_only: true
+
+  renderer_type: "smpl-renderer"
+  renderer:
+    context_type: cuda
+
+  # prompt_processor_type: "stable-diffusion-prompt-processor"
+  # prompt_processor:
+  #   pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
+  #   prompt: ???
+  #   front_threshold: 30.
+  #   back_threshold: 30.
+
+  # guidance_type: "multiview-diffusion-guidance"
+  # guidance:
+  #   model_name: "sd-v2.1-base-4view"
+  #   ckpt_path: null # path to a pre-downloaded checkpoint file (null for loading from URL)
+  #   guidance_scale: 50.0
+  #   min_step_percent: 0.02
+  #   max_step_percent: [0, 0.98, 0.50, 8000]  # (start_iter, start_val, end_val, end_iter)
+  #   recon_loss: true
+  #   recon_std_rescale: 0.5
+
+  composed_renderer_type: "smpl-with-mesh-renderer"
+  composed_renderer:
+    context_type: cuda
+    mesh_path: ???
+    mesh:
+      y_up: True
+      normalize: True
+      # Prior scale for implicit volume is 0.5 (e.g. geometry.density_blob_std)
+      # So we assume the mesh is about the same size
+      scale: 0.5
+
+  composed_prompt_processor_type: "stable-diffusion-prompt-processor"
+  composed_prompt_processor:
+    pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
+    prompt: ???
+    front_threshold: 30.
+    back_threshold: 30.
+
+  composed_guidance_type: "multiview-diffusion-guidance"
+  composed_guidance:
+    model_name: "sd-v2.1-base-4view"
+    ckpt_path: null # path to a pre-downloaded checkpoint file (null for loading from URL)
+    guidance_scale: 50.0
+    min_step_percent: 0.02
+    max_step_percent: 0.98
+    recon_loss: true
+    recon_std_rescale: 0.5
+
+  loggers:
+    wandb:
+      enable: false
+      project: "threestudio"
+
+  loss:
+    lambda_composed_sds: 1.
+    lambda_composed_individual_sds: 0.
+    lambda_sds: 0.
+    lambda_orient: 0.
+    lambda_sparsity: 0.
+    lambda_opaque: 0.
+    lambda_z_variance: 0.
+  optimizer:
+    name: AdamW
+    args:
+      betas: [0.9, 0.99]
+      eps: 1.e-15
+    params:
+      geometry:
+        lr: 0.0001
+      background:
+        lr: 0.00001
+
+trainer:
+  max_steps: 10000
+  log_every_n_steps: 1
+  num_sanity_val_steps: 0
+  val_check_interval: 200
+  enable_progress_bar: true
+  precision: 16-mixed
+
+checkpoint:
+  save_last: true
+  save_top_k: -1
+  every_n_train_steps: ${trainer.max_steps}
