@@ -131,7 +131,14 @@ class SMPL(BaseExplicitGeometry):
             trans=self.translation,
         )
         mesh = Mesh(vertices, self.smpl_model.faces)
-        if self.vertex_color is not None:
+        if self.cfg.use_feature_network:
+            points = contract_to_unisphere(vertices, self.bbox)
+            enc = self.encoding(points.view(-1, self.cfg.n_input_dims))
+            features = self.feature_network(enc).view(
+                *points.shape[:-1], self.cfg.n_feature_dims
+            )
+            mesh.set_vertex_color(features)
+        elif self.vertex_color is not None:
             mesh.set_vertex_color(self.vertex_color)
         return mesh
 
