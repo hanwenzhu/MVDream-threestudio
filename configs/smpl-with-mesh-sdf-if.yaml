@@ -23,6 +23,7 @@ system:
     shape_init: ???
     shape_init_center_mesh: false
     shape_init_scale_mesh: false
+    shape_init_params: 1.0
 
   material_type: "no-material"
   material:

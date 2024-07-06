@@ -58,9 +58,34 @@ class SMPLWithMeshRenderer(SMPLRenderer):
 
         # Merge SMPL mesh and self.mesh
         smpl_mesh = self.geometry.isosurface()
-        if smpl_mesh.v_rgb is None:
-            # TODO
-            smpl_mesh.set_vertex_color(torch.zeros_like(smpl_mesh.v_pos))
+        smpl_rgb: Float[Tensor, "B Nvs 3"]
+        if smpl_mesh.v_rgb is not None:
+            smpl_rgb = smpl_mesh.v_rgb
+        else:
+            # TODO, the logic in like nvdiff_rasterizer makes more sense
+            # But for that we need a mask that selects the SMPL only
+            geo_out = self.geometry(smpl_mesh.v_pos, output_normal=False)
+            extra_geo_info = {}
+            if self.material.requires_normal:
+                extra_geo_info["shading_normal"] = smpl_mesh.v_nrm
+            if self.material.requires_tangent:
+                extra_geo_info["tangent"] = smpl_mesh.v_tng
+            viewdirs = F.normalize(
+                smpl_mesh.v_pos[None, :, :] - camera_positions[:, None, :], dim=-1
+            )
+            lightpos = light_positions[:, None, :].expand(
+                -1, smpl_mesh.v_pos.shape[0], -1
+            )
+            smpl_rgb = self.material(
+                viewdirs=viewdirs,
+                positions=smpl_mesh.v_pos,
+                light_positions=lightpos,
+                **extra_geo_info,
+                **geo_out
+            )
+            
+        mesh: Mesh
+        rgb: Float[Tensor, "B Nv 3"]
         if render_mesh:
             v_pos = torch.cat([
                 smpl_mesh.v_pos, self.mesh.v_pos
@@ -71,13 +96,15 @@ class SMPLWithMeshRenderer(SMPLRenderer):
                 self.mesh.t_pos_idx + smpl_mesh.v_pos.shape[0]
             ], dim=0)
             mesh = Mesh(v_pos, t_pos_idx)
-            mesh.set_vertex_color(
-                torch.cat([
-                    smpl_mesh.v_rgb, self.mesh.v_rgb
-                ], dim=0)
-            )
+            if self.mesh.v_rgb is None:
+                threestudio.warn("Given mesh has no color, using all black")
+                self.mesh.set_vertex_color(torch.zeros_like(self.mesh.v_pos))
+            rgb = torch.cat([
+                smpl_rgb, self.mesh.v_rgb[None, :, :].expand(batch_size, -1, -1)
+            ], dim=1)
         else:
             mesh = smpl_mesh
+            rgb = smpl_rgb
 
         # Render mesh
         # From nvdiff_rasterizer.py:
@@ -88,9 +115,9 @@ class SMPLWithMeshRenderer(SMPLRenderer):
         mask = rast[..., 3:] > 0
         mask_aa = self.ctx.antialias(mask.float(), rast, v_pos_clip, mesh.t_pos_idx)
         
-        # We could generate color from self.geometry and self.material (as in nvdiff_rasterizer.py)
-        # Instead we generate color directly from mesh information v_rgb
-        gb_rgb_fg, _ = self.ctx.interpolate_one(mesh.v_rgb, rast, mesh.t_pos_idx)
+        # We generate color directly from mesh information v_rgb
+        # gb_rgb_fg, _ = self.ctx.interpolate_one(mesh.v_rgb, rast, mesh.t_pos_idx)
+        gb_rgb_fg, _ = self.ctx.interpolate(rgb, rast, mesh.t_pos_idx)
         gb_rgb_bg = self.background(dirs=rays_d)
 
         # Add mesh rendering RGB to background and then the implicit volume RGB
