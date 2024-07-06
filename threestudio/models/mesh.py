@@ -350,6 +350,7 @@ class Mesh:
         translation: Optional[List[float]] = None,
         occupancy_resolution: int = 128,
     ) -> Mesh:
+        # TODO(thomas): use the format of tetrahedra-sdf-grid.configure
         import trimesh
 
         mesh = trimesh.load(file_path, force="mesh")
