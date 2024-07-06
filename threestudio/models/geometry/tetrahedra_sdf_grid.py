@@ -205,7 +205,8 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             if self.cfg.shape_init_scale_mesh:
                 scale = np.abs(mesh.vertices).max()
                 mesh.vertices = mesh.vertices / scale * self.cfg.shape_init_params
-                mesh.vertices = np.dot(mesh2std, mesh.vertices.T).T
+            
+            mesh.vertices = np.dot(mesh2std, mesh.vertices.T).T
 
             from pysdf import SDF
 
