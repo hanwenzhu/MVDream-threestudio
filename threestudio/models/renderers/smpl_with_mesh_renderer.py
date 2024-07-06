@@ -60,25 +60,26 @@ class SMPLWithMeshRenderer(SMPLRenderer):
         smpl_mesh = self.geometry.isosurface()
         smpl_rgb: Float[Tensor, "B Nvs 3"]
         if smpl_mesh.v_rgb is not None:
-            smpl_rgb = smpl_mesh.v_rgb
+            smpl_rgb = smpl_mesh.v_rgb[None, :, :].expand(batch_size, -1, -1)
         else:
             # TODO, the logic in like nvdiff_rasterizer makes more sense
             # But for that we need a mask that selects the SMPL only
-            geo_out = self.geometry(smpl_mesh.v_pos, output_normal=False)
+            positions = smpl_mesh.v_pos[None, :, :].expand(batch_size, -1, -1)
+            geo_out = self.geometry(positions, output_normal=False)
             extra_geo_info = {}
             if self.material.requires_normal:
                 extra_geo_info["shading_normal"] = smpl_mesh.v_nrm
             if self.material.requires_tangent:
                 extra_geo_info["tangent"] = smpl_mesh.v_tng
             viewdirs = F.normalize(
-                smpl_mesh.v_pos[None, :, :] - camera_positions[:, None, :], dim=-1
+                positions - camera_positions[:, None, :], dim=-1
             )
             lightpos = light_positions[:, None, :].expand(
-                -1, smpl_mesh.v_pos.shape[0], -1
+                -1, positions.shape[1], -1
             )
             smpl_rgb = self.material(
                 viewdirs=viewdirs,
-                positions=smpl_mesh.v_pos,
+                positions=positions,
                 light_positions=lightpos,
                 **extra_geo_info,
                 **geo_out
