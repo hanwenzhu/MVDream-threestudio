@@ -7,6 +7,6 @@ from . import (
     neus_volume_renderer,
     nvdiff_rasterizer,
     smpl_renderer,
-    smpl_with_mesh_renderer,
     patch_renderer,
+    with_mesh_rasterizer,
 )

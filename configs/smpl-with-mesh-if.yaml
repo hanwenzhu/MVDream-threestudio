@@ -63,7 +63,7 @@ system:
   #   recon_loss: true
   #   recon_std_rescale: 0.5
 
-  composed_renderer_type: "smpl-with-mesh-renderer"
+  composed_renderer_type: "with-mesh-rasterizer"
   composed_renderer:
     context_type: cuda
     mesh_path: ???
