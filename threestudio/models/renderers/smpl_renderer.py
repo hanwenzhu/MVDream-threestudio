@@ -20,6 +20,7 @@ class SMPLRenderer(NVDiffRasterizer):
 
     # Currently it is basically the same as NVDiffRasterizer except skipping
     # calculating normals when not necessary
+    # TODO merge this into nvdiffrasterizer; no need for this separate class
 
     @dataclass
     class Config(NVDiffRasterizer.Config):
