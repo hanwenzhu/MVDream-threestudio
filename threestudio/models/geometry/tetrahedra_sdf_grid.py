@@ -114,7 +114,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             else:
                 self.deformation = None
 
-        if not self.cfg.geometry_only:
+        if not self.cfg.geometry_only and not self.cfg.shape_init_fix_mesh_color:
             self.encoding = get_encoding(
                 self.cfg.n_input_dims, self.cfg.pos_encoding_config
             )
@@ -208,6 +208,9 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             
             mesh.vertices = np.dot(mesh2std, mesh.vertices.T).T
 
+            if self.cfg.shape_init_fix_mesh_color:
+                self.fixed_mesh = mesh
+
             from pysdf import SDF
 
             sdf = SDF(mesh.vertices, mesh.faces)
@@ -243,12 +246,20 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         # return cached mesh if fix_geometry is True to save computation
         if self.cfg.fix_geometry and self.mesh is not None:
             return self.mesh
-        mesh = self.isosurface_helper(self.sdf, self.deformation)
+        mesh: Mesh = self.isosurface_helper(self.sdf, self.deformation)
         mesh.v_pos = scale_tensor(
             mesh.v_pos, self.isosurface_helper.points_range, self.isosurface_bbox
         )
         if self.cfg.isosurface_remove_outliers:
             mesh = mesh.remove_outlier(self.cfg.isosurface_outlier_n_faces_threshold)
+        if self.cfg.shape_init_fix_mesh_color:
+            # (could be faster)
+            # select closest vertices from fixed_mesh corresponding to each vertex
+            closest_vertices = torch.linalg.norm(
+                mesh.v_pos[:, None, :] - self.fixed_mesh.v_pos[None, :, :], dim=2
+            ).argmin(dim=1)
+            # color the mesh accordingly
+            mesh.set_vertex_color(self.fixed_mesh.v_rgb[closest_vertices])
         self.mesh = mesh
         return mesh
 
