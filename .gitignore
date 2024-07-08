@@ -188,4 +188,4 @@ outputs-gradio/
 # wandb
 wandb/
 
-smplx/
+/smplx/
