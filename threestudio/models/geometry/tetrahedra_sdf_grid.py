@@ -210,9 +210,15 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             mesh.vertices = np.dot(mesh2std, mesh.vertices.T).T
 
             if self.cfg.shape_init_fix_mesh_color_file is not None:
-                self.initial_vertices = torch.from_numpy(mesh.vertices)
-                self.initial_color = torch.from_numpy(
-                    np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.
+                self.initial_vertices: Float[Tensor, "Nv 3"]
+                self.register_parameter(
+                    "initial_vertices",
+                    torch.from_numpy(mesh.vertices).float()
+                )
+                self.initial_color: Float[Tensor, "Nv 3"]
+                self.register_parameter(
+                    "initial_vertices",
+                    torch.from_numpy(np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.)
                 )
                 assert self.initial_vertices.shape == self.initial_color.shape
 
