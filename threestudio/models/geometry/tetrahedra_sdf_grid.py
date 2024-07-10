@@ -271,10 +271,10 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             # (could be faster)
             # select closest vertices from intial_vertices corresponding to each vertex
             closest_vertices = torch.linalg.norm(
-                mesh.v_pos[:, None, :] - self.initial_vertices[None, :, :], dim=2
+                mesh.v_pos[:, None, :] - self.initial_vertices.to(mesh.v_pos)[None, :, :], dim=2
             ).argmin(dim=1)
             # color the mesh accordingly
-            mesh.set_vertex_color(self.initial_color[closest_vertices])
+            mesh.set_vertex_color(self.initial_color[closest_vertices].to(mesh.v_pos))
         self.mesh = mesh
         return mesh
 
