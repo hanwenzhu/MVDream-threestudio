@@ -58,7 +58,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         shape_init_scale_mesh: bool = True
         shape_init_mesh_up: str = "+z"
         shape_init_mesh_front: str = "+x"
-        shape_init_fix_mesh_color: bool = False
+        shape_init_fix_mesh_color_file: Optional[str] = None
         force_shape_init: bool = False
         geometry_only: bool = False
         fix_geometry: bool = False
@@ -115,7 +115,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             else:
                 self.deformation = None
 
-        if not self.cfg.geometry_only and not self.cfg.shape_init_fix_mesh_color:
+        if not self.cfg.geometry_only and self.cfg.shape_init_fix_mesh_color_file is None:
             self.encoding = get_encoding(
                 self.cfg.n_input_dims, self.cfg.pos_encoding_config
             )
@@ -209,8 +209,12 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             
             mesh.vertices = np.dot(mesh2std, mesh.vertices.T).T
 
-            if self.cfg.shape_init_fix_mesh_color:
-                self.fixed_mesh = mesh
+            if self.cfg.shape_init_fix_mesh_color_file is not None:
+                self.initial_vertices = torch.from_numpy(mesh.vertices)
+                self.initial_color = torch.from_numpy(
+                    np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.
+                )
+                assert self.initial_vertices.shape == self.initial_color.shape
 
             from pysdf import SDF
 
@@ -253,14 +257,14 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         )
         if self.cfg.isosurface_remove_outliers:
             mesh = mesh.remove_outlier(self.cfg.isosurface_outlier_n_faces_threshold)
-        if self.cfg.shape_init_fix_mesh_color:
+        if self.cfg.shape_init_fix_mesh_color_file is not None:
             # (could be faster)
-            # select closest vertices from fixed_mesh corresponding to each vertex
+            # select closest vertices from intial_vertices corresponding to each vertex
             closest_vertices = torch.linalg.norm(
-                mesh.v_pos[:, None, :] - self.fixed_mesh.v_pos[None, :, :], dim=2
+                mesh.v_pos[:, None, :] - self.initial_vertices[None, :, :], dim=2
             ).argmin(dim=1)
             # color the mesh accordingly
-            mesh.set_vertex_color(self.fixed_mesh.v_rgb[closest_vertices])
+            mesh.set_vertex_color(self.initial_color[closest_vertices])
         self.mesh = mesh
         return mesh
 
