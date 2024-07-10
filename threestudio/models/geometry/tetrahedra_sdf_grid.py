@@ -274,7 +274,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                 mesh.v_pos[:, None, :] - self.initial_vertices.to(mesh.v_pos)[None, :, :], dim=2
             ).argmin(dim=1)
             # color the mesh accordingly
-            mesh.set_vertex_color(self.initial_color[closest_vertices].to(mesh.v_pos))
+            mesh.set_vertex_color(self.initial_color.to(mesh.v_pos)[closest_vertices])
         self.mesh = mesh
         return mesh
 

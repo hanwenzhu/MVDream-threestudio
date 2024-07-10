@@ -42,8 +42,9 @@ system:
     share_aug_bg: true
 
   composed_only: true
+  use_composed_renderer_for_individual: true
 
-  # Unused except for validation/testing
+  # Completely unused
   renderer_type: "nvdiff-rasterizer"
   renderer:
     context_type: cuda

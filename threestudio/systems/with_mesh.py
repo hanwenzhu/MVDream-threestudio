@@ -19,6 +19,7 @@ class WithMesh(BaseLift3DSystem):
     @dataclass
     class Config(BaseLift3DSystem.Config):
         composed_only: bool = False
+        use_composed_renderer_for_individual: bool = False
 
         composed_renderer_type: str = ""
         composed_renderer: dict = field(default_factory=dict)
@@ -95,7 +96,10 @@ class WithMesh(BaseLift3DSystem):
 
         if not self.cfg.composed_only:
             # loss of individual object
-            out = self.renderer(**batch)
+            if self.cfg.use_composed_renderer_for_individual:
+                out = self.composed_renderer(**batch, render_mesh=False)
+            else:
+                out = self.renderer(**batch)
             guidance_out = self.guidance(
                 out["comp_rgb"], self.prompt_utils, **batch, rgb_as_latents=False
             )
@@ -188,7 +192,7 @@ class WithMesh(BaseLift3DSystem):
                 name=f"validation_step-{name}",
                 step=self.true_global_step,
             )
-        if not self.cfg.composed_only:
+        if not self.cfg.composed_only and not self.cfg.use_composed_renderer_for_individual:
             run_validation("obj", batch, self.renderer)
         run_validation("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
         run_validation("with_mesh", batch, self.composed_renderer)
@@ -259,16 +263,15 @@ class WithMesh(BaseLift3DSystem):
                 name=f"test_step-{name}",
                 step=self.true_global_step,
             )
-        if not self.cfg.composed_only:
+        if not self.cfg.composed_only and not self.cfg.use_composed_renderer_for_individual:
             run_test("obj", batch, self.renderer)
         run_test("no_mesh", {**batch, "render_mesh": False}, self.composed_renderer)
         run_test("with_mesh", batch, self.composed_renderer)
 
     def on_test_epoch_end(self):
-        names = (
-            ("no_mesh", "with_mesh") if self.cfg.composed_only else
-            ("obj", "no_mesh", "with_mesh")
-        )
+        names = ["no_mesh", "with_mesh"]
+        if not self.cfg.composed_only and not self.cfg.use_composed_renderer_for_individual:
+            names.append("obj")
         for name in names:
             self.save_img_sequence(
                 f"it{self.true_global_step}-test-{name}",
