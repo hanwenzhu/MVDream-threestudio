@@ -211,16 +211,20 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
 
             if self.cfg.shape_init_fix_mesh_color_file is not None:
                 self.initial_vertices: Float[Tensor, "Nv 3"]
-                self.register_parameter(
+                self.register_buffer(
                     "initial_vertices",
                     torch.from_numpy(mesh.vertices).float()
                 )
                 self.initial_color: Float[Tensor, "Nv 3"]
-                self.register_parameter(
+                self.register_buffer(
                     "initial_vertices",
                     torch.from_numpy(np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.)
                 )
                 assert self.initial_vertices.shape == self.initial_color.shape
+                # TODO
+                # and also on triton
+                # git checkout -- ../configs/smpl-with-mesh-sdf-if.yaml
+                # when done
 
             from pysdf import SDF
 
