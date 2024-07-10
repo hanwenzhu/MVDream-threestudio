@@ -217,7 +217,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                 )
                 self.initial_color: Float[Tensor, "Nv 3"]
                 self.register_buffer(
-                    "initial_vertices",
+                    "initial_color",
                     torch.from_numpy(np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.)
                 )
                 assert self.initial_vertices.shape == self.initial_color.shape
