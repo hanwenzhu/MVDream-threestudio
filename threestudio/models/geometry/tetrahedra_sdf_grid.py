@@ -17,7 +17,7 @@ from threestudio.models.geometry.implicit_volume import ImplicitVolume
 from threestudio.models.isosurface import MarchingTetrahedraHelper
 from threestudio.models.mesh import Mesh
 from threestudio.models.networks import get_encoding, get_mlp
-from threestudio.utils.misc import broadcast
+from threestudio.utils.misc import broadcast, get_rank
 from threestudio.utils.ops import scale_tensor
 from threestudio.utils.typing import *
 
@@ -115,7 +115,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             else:
                 self.deformation = None
 
-        if not self.cfg.geometry_only and self.cfg.shape_init_fix_mesh_color_file is None:
+        if not self.cfg.geometry_only:
             self.encoding = get_encoding(
                 self.cfg.n_input_dims, self.cfg.pos_encoding_config
             )
@@ -221,10 +221,6 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                     torch.from_numpy(np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.)
                 )
                 assert self.initial_vertices.shape == self.initial_color.shape
-                # TODO
-                # and also on triton
-                # git checkout -- ../configs/smpl-with-mesh-sdf-if.yaml
-                # when done
 
             from pysdf import SDF
 
@@ -253,6 +249,32 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         )
         self.sdf.data = sdf_gt
 
+        if not self.cfg.geometry_only and self.cfg.shape_init_fix_mesh_color_file is not None:
+            # learn the feature network from initial mesh color
+            optim = torch.optim.Adam(self.parameters(), lr=1e-3)
+            from tqdm import tqdm
+
+            for _ in tqdm(
+                range(1000),
+                desc=f"Initializing feature network to given {self.cfg.shape_init_fix_mesh_color_file}:",
+                disable=get_rank() != 0,
+            ):
+                # (could be faster)
+                # select closest vertices from intial_vertices corresponding to each vertex
+                points_rand = (
+                    torch.rand((10000, 3), dtype=torch.float32).to(self.device) * 2.0 - 1.0
+                )
+                closest_vertices = torch.linalg.norm(
+                    points_rand[:, None, :] - self.initial_vertices.to(points_rand)[None, :, :], dim=2
+                ).argmin(dim=1)
+                # color the mesh accordingly
+                color_gt = self.initial_color.to(points_rand)[closest_vertices]
+                color_pred = self.forward(points_rand)["features"]
+                loss = F.mse_loss(color_gt, color_pred)
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
+
         # explicit broadcast to ensure param consistency across ranks
         for param in self.parameters():
             broadcast(param, src=0)
@@ -267,8 +289,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         )
         if self.cfg.isosurface_remove_outliers:
             mesh = mesh.remove_outlier(self.cfg.isosurface_outlier_n_faces_threshold)
-        if self.cfg.shape_init_fix_mesh_color_file is not None:
-            # (could be faster)
+        if self.cfg.geometry_only and self.cfg.shape_init_fix_mesh_color_file is not None:
             # select closest vertices from intial_vertices corresponding to each vertex
             closest_vertices = torch.linalg.norm(
                 mesh.v_pos[:, None, :] - self.initial_vertices.to(mesh.v_pos)[None, :, :], dim=2

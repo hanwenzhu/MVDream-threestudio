@@ -20,9 +20,14 @@ system:
   geometry:
     # this requires generating corresponding file in load/tets
     isosurface_resolution: 256
-    # e.g. "mesh:/path/to/smpl.obj"
+    
+    # use feature network
+    geometry_only: false
+
     force_shape_init: true
-    shape_init: ???
+    # e.g. "mesh:/path/to/smpl.obj"
+    shape_init: ???  # .obj
+    shape_init_fix_mesh_color_file: ???  # .npy, storing (#vert, 3) array
     shape_init_center_mesh: false
     shape_init_scale_mesh: false
     shape_init_params: 1.0
@@ -30,10 +35,10 @@ system:
   # if the user specifies geometry_convert_from, then this is implied
   geometry_convert_inherit_texture: true
 
-  material_type: "no-material"
+  material_type: "diffuse-with-point-light-material"
   material:
-    n_output_dims: 3
-    color_activation: sigmoid
+    ambient_only_steps: 0
+    soft_shading: true
 
   background_type: "neural-environment-map-background"
   background:
