@@ -27,8 +27,7 @@ system:
     force_shape_init: true
     # e.g. "mesh:/path/to/smpl.obj"
     shape_init: ???
-    # storing (#vert, 3) array
-    shape_init_fix_mesh_color_file: ./load/smplx/smpl_rgb.npy
+    # shape_init_fix_mesh_color_file: ./load/smplx/smpl_rgb.npy  # (#vert, 3) array
     shape_init_center_mesh: false
     shape_init_scale_mesh: false
     shape_init_params: 1.0
