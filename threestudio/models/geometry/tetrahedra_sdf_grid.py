@@ -58,6 +58,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         shape_init_scale_mesh: bool = True
         shape_init_mesh_up: str = "+z"
         shape_init_mesh_front: str = "+x"
+        # TODO rename
         shape_init_fix_mesh_color_file: Optional[str] = None
         force_shape_init: bool = False
         geometry_only: bool = False
