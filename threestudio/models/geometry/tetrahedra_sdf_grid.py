@@ -262,14 +262,19 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                 # (could be faster)
                 # select closest vertices from intial_vertices corresponding to each vertex
                 points_rand = (
-                    torch.rand((10000, 3), dtype=torch.float32).to(self.device) * 2.0 - 1.0
+                    torch.rand(self.initial_vertices.shape, dtype=torch.float32).to(self.device) * 2.0 - 1.0
                 )
                 closest_vertices = torch.linalg.norm(
                     points_rand[:, None, :] - self.initial_vertices.to(points_rand)[None, :, :], dim=2
                 ).argmin(dim=1)
+                # make points at vertices also close to color
+                points = torch.cat([points_rand, self.initial_vertices.to(points_rand)], dim=0)
                 # color the mesh accordingly
-                color_gt = self.initial_color.to(points_rand)[closest_vertices]
-                color_pred = self.forward(points_rand)["features"]
+                color_gt = torch.cat([
+                    self.initial_color.to(points_rand)[closest_vertices],
+                    self.initial_color.to(points_rand)
+                ], dim=0)
+                color_pred = self.forward(points)["features"]
                 loss = F.mse_loss(color_gt, color_pred)
                 optim.zero_grad()
                 loss.backward()
