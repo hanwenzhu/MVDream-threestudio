@@ -230,7 +230,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             # Instead we generate color directly from mesh information v_rgb
             mesh_rgb = self.mesh.v_rgb
             if self.cfg.mesh_color_random:
-                mesh_rgb = torch.rand(1, 3).to(mesh_rgb).expand_as(mesh_rgb)
+                mesh_rgb = torch.rand(1, 3).to(mesh_rgb).expand_as(mesh_rgb).contiguous()
             gb_rgb_fg, _ = self.ctx.interpolate_one(mesh_rgb, rast, self.mesh.t_pos_idx)
 
             # Add mesh rendering RGB to background and then the implicit volume RGB
