@@ -27,6 +27,7 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
         mesh_path: str = ""
         # See Mesh.from_path for options
         mesh: dict = field(default_factory=dict)
+        mesh_color_random: bool = False
 
         geometry_center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
         geometry_scale: float = 1.0
@@ -227,6 +228,9 @@ class NeRFWithMeshRenderer(NeRFVolumeRenderer):
             
             # We could generate color from self.geometry and self.material (as in nvdiff_rasterizer.py)
             # Instead we generate color directly from mesh information v_rgb
+            mesh_rgb = self.mesh.v_rgb
+            if self.cfg.mesh_color_random:
+                mesh_rgb = torch.rand(3).to(mesh_rgb).expand(mesh_rgb.shape)
             gb_rgb_fg, _ = self.ctx.interpolate_one(self.mesh.v_rgb, rast, self.mesh.t_pos_idx)
 
             # Add mesh rendering RGB to background and then the implicit volume RGB
