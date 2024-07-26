@@ -139,6 +139,7 @@ class WithMeshRasterizer(NVDiffRasterizer):
             "z_variance": 0.0,  # TODO
             "intersection": intersection,
             "mesh_occlusion": 0.0,  # TODO
+            "mesh": smpl_mesh,
         }
 
         return out

@@ -150,6 +150,11 @@ class WithMesh(BaseLift3DSystem):
             self.log("train/loss_mesh_occlusion", loss_mesh_occlusion)
             loss += loss_mesh_occlusion * self.C(self.cfg.loss["lambda_mesh_occlusion"])
 
+        if "lambda_normal_consistency" in self.cfg.loss:
+            loss_normal_consistency = out["mesh"].normal_consistency()
+            self.log("train/loss_normal_consistency", loss_normal_consistency)
+            loss += loss_normal_consistency * self.C(self.cfg.loss["lambda_normal_consistency"])
+
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
 
