@@ -333,6 +333,27 @@ class Mesh:
         ]
         return contains
 
+    def sdf(self, points: Float[Tensor, "*N 3"]) -> Float[Tensor, "*N"]:
+        """Returns the (differentiable) signed distances to mesh"""
+        if "bounds" not in self.extras or "sdf" not in self.extras:
+            # TODO
+            raise NotImplementedError
+
+        points_shape = points.shape
+        bounds = torch.as_tensor(self.extras["bounds"]).to(points)
+        sdf = torch.as_tensor(self.extras["sdf"]).to(points)
+        
+        # scale to [-1., 1.] for grid_sample
+        contracted = scale_tensor(points, bounds, (-1.0, 1.0))
+
+        # interpolate value of 
+        sdf_values = F.grid_sample(
+            sdf[None, None, ...],
+            contracted.view(1, -1, 1, 1, 3),
+            padding_mode="border"
+        )
+        return sdf_values.view(points_shape[:-1])
+
     @classmethod
     def from_path(
         cls,
@@ -406,6 +427,7 @@ class Mesh:
             np.linspace(mesh.bounds[0, 2], mesh.bounds[1, 2], occupancy_resolution),
             indexing="ij"
         ), axis=-1)
+
         # For occupancy testing we use trimesh contains_points,
         # which is much faster with embree installed (and pyembree or embreex bindings)
         if not trimesh.ray.has_embree:
@@ -423,5 +445,12 @@ class Mesh:
         ).reshape(test_points.shape[:3])
         # (128, 128, 128)
         obj.add_extra("occupancies", occupancies)
+
+        # Test SDF
+        from pysdf import SDF
+        sdf_fun = SDF(mesh.vertices, mesh.faces)
+        sdf = sdf_fun(test_points.reshape(-1, 3)).reshape(test_points.shape[:3])
+        # (128, 128, 128)
+        obj.add_extra("sdf", sdf)
 
         return obj

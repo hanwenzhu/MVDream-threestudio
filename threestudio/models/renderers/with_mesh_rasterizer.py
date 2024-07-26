@@ -126,6 +126,10 @@ class WithMeshRasterizer(NVDiffRasterizer):
             gb_rgb, rast, v_pos_clip, mesh.t_pos_idx
         )
 
+        # check intersection
+        smpl_sdf = self.mesh.sdf(smpl_mesh.v_pos)
+        intersection = F.relu(-smpl_sdf)
+
         out = {
             "comp_rgb": gb_rgb_aa,
             "comp_rgb_fg": gb_rgb_fg,
@@ -133,7 +137,7 @@ class WithMeshRasterizer(NVDiffRasterizer):
             "opacity": mask_aa,
             "depth": 0.0,  # TODO
             "z_variance": 0.0,  # TODO
-            "intersection": 0.0,  # TODO
+            "intersection": intersection,
             "mesh_occlusion": 0.0,  # TODO
         }
 
