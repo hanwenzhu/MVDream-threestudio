@@ -307,7 +307,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             ).argmin(dim=1)
             # color the mesh accordingly
             mesh.set_vertex_color(self.initial_color.to(mesh.v_pos)[closest_vertices])
-        if not self.fix_geometry and not self.cfg.fix_position:
+        if not self.cfg.fix_geometry and not self.cfg.fix_position:
             mesh.v_pos += self.translation
         self.mesh = mesh
         return mesh
