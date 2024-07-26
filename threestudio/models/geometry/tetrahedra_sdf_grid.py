@@ -261,7 +261,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             from tqdm import tqdm
 
             for _ in tqdm(
-                range(1000),
+                range(10000),
                 desc=f"Initializing feature network to given {self.cfg.shape_init_fix_mesh_color_file}:",
                 disable=get_rank() != 0,
             ):
