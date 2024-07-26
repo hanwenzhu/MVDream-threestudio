@@ -26,6 +26,7 @@ class WithMeshRasterizer(NVDiffRasterizer):
         mesh_path: str = ""
         # See Mesh.from_path for options
         mesh: dict = field(default_factory=dict)
+        mesh_color_random: bool = False
 
     cfg: Config
 
@@ -96,11 +97,15 @@ class WithMeshRasterizer(NVDiffRasterizer):
                 self.mesh.t_pos_idx + smpl_mesh.v_pos.shape[0]
             ], dim=0)
             mesh = Mesh(v_pos, t_pos_idx)
-            if self.mesh.v_rgb is None:
+            if self.cfg.mesh_color_random:
+                mesh_rgb = torch.rand(1, 3).to(mesh.v_pos).expand_as(mesh.v_pos).contiguous()
+            elif self.mesh.v_rgb is None:
                 threestudio.warn("Given mesh has no color, using all black")
-                self.mesh.set_vertex_color(torch.zeros_like(self.mesh.v_pos))
+                mesh_rgb = torch.zeros_like(self.mesh.v_pos)
+            else:
+                mesh_rgb = self.mesh.v_rgb
             rgb = torch.cat([
-                smpl_rgb, self.mesh.v_rgb[None, :, :].expand(batch_size, -1, -1)
+                smpl_rgb, mesh_rgb[None, :, :].expand(batch_size, -1, -1)
             ], dim=1)
         else:
             mesh = smpl_mesh
