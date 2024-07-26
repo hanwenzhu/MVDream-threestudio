@@ -63,6 +63,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
         force_shape_init: bool = False
         geometry_only: bool = False
         fix_geometry: bool = False
+        fix_position: bool = True
 
     cfg: Config
 
@@ -100,6 +101,10 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                 )
             else:
                 self.deformation = None
+            if not self.cfg.fix_position:
+                self.register_parameter(
+                    "translation", nn.Parameter(torch.zeros(3))
+                )
         else:
             self.register_buffer(
                 "sdf",
@@ -275,7 +280,7 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                     self.initial_color.to(points_rand)[closest_vertices],
                     self.initial_color.to(points_rand)
                 ], dim=0)
-                color_pred = self.forward(points)["features"]
+                color_pred = F.softmax(self.forward(points)["features"], dim=-1)
                 loss = F.mse_loss(color_gt, color_pred)
                 optim.zero_grad()
                 loss.backward()
@@ -302,6 +307,8 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
             ).argmin(dim=1)
             # color the mesh accordingly
             mesh.set_vertex_color(self.initial_color.to(mesh.v_pos)[closest_vertices])
+        if not self.fix_geometry and not self.cfg.fix_position:
+            mesh.v_pos += self.translation
         self.mesh = mesh
         return mesh
 
