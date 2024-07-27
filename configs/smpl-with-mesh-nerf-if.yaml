@@ -57,9 +57,10 @@ system:
   use_composed_renderer_for_individual: true
 
   # Completely unused
-  renderer_type: "nvdiff-rasterizer"
+  renderer_type: "nerf-volume-renderer"
   renderer:
-    context_type: cuda
+    radius: ${system.geometry.radius}
+    num_samples_per_ray: 512
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:
@@ -77,9 +78,11 @@ system:
     max_step_percent: 0.5
     recon_loss: true
     recon_std_rescale: 0.5
-
-  composed_renderer_type: "with-mesh-rasterizer"
+  
+  composed_renderer_type: "nerf-with-mesh-renderer"
   composed_renderer:
+    radius: ${system.geometry.radius}
+    num_samples_per_ray: 512
     context_type: cuda
     mesh_path: ???
     mesh:
