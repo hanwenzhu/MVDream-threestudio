@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import os
 
 import numpy as np
 import torch
@@ -12,6 +13,8 @@ from threestudio.models.geometry.base import (
     contract_to_unisphere,
 )
 from threestudio.models.networks import get_encoding, get_mlp
+from threestudio.models.mesh import Mesh
+from threestudio.utils.misc import broadcast, get_device, get_rank
 from threestudio.utils.ops import get_activation
 from threestudio.utils.typing import *
 
@@ -53,6 +56,17 @@ class ImplicitVolume(BaseImplicitGeometry):
         # automatically determine the threshold
         isosurface_threshold: Union[float, str] = 25.0
 
+        shape_init: Optional[str] = None
+        # TODO
+        # shape_init_params: Optional[Any] = None
+        # shape_init_center_mesh: bool = True
+        # shape_init_scale_mesh: bool = True
+        # shape_init_mesh_up: str = "+z"
+        # shape_init_mesh_front: str = "+x"
+        # TODO rename
+        shape_init_fix_mesh_color_file: Optional[str] = None
+        force_shape_init: bool = False
+
     cfg: Config
 
     def configure(self) -> None:
@@ -73,6 +87,67 @@ class ImplicitVolume(BaseImplicitGeometry):
             self.normal_network = get_mlp(
                 self.encoding.n_output_dims, 3, self.cfg.mlp_network_config
             )
+    
+    def initialize_shape(self) -> None:
+        if self.cfg.shape_init is None and not self.cfg.force_shape_init:
+            return
+
+        # do not initialize shape if weights are provided
+        if self.cfg.weights is not None and not self.cfg.force_shape_init:
+            return
+
+        assert isinstance(self.cfg.shape_init, str)
+        assert self.cfg.shape_init.startswith("mesh:")
+        assert isinstance(self.cfg.shape_init_params, float)
+        mesh_path = self.cfg.shape_init[5:]
+        if not os.path.exists(mesh_path):
+            raise ValueError(f"Mesh file {mesh_path} does not exist.")
+
+        mesh = Mesh.from_path(mesh_path, self.device, y_up=False, normalize=False)
+
+        if self.cfg.shape_init_fix_mesh_color_file is not None:
+            mesh.set_vertex_color(
+                torch.from_numpy(
+                    np.load(self.cfg.shape_init_fix_mesh_color_file).astype(np.float32) / 255.
+                ).to(mesh.v_pos)
+            )
+            assert mesh.v_rgb.shape == mesh.v_pos.shape
+
+        # learn the density & feature network
+        optim = torch.optim.Adam(self.parameters(), lr=1e-3)
+        from tqdm import tqdm
+
+        for _ in tqdm(
+            range(10000),
+            desc=f"Initializing network to given {self.cfg.shape_init}:",
+            disable=get_rank() != 0,
+        ):
+            # (could be faster)
+            # select closest vertices from intial_vertices corresponding to each vertex
+            points_rand = (
+                torch.rand(1000, 3, dtype=torch.float32).to(self.device) * 2.0 - 1.0
+            ) * self.cfg.radius
+            closest_vertices = torch.linalg.norm(
+                points_rand[:, None, :] - self.initial_vertices.to(points_rand)[None, :, :], dim=2
+            ).argmin(dim=1)
+            # make points at vertices also close to color
+            points = torch.cat([points_rand, self.initial_vertices.to(points_rand)], dim=0)
+            # color the mesh accordingly
+            color_gt = torch.cat([
+                mesh.v_rgb.to(points_rand)[closest_vertices],
+                mesh.v_rgb.to(points_rand)
+            ], dim=0)
+            contains_gt = mesh.contains_points(points_rand).float()
+            pred = self.forward(points)
+            loss = F.cross_entropy(pred["features"], color_gt)
+            loss += F.binary_cross_entropy_with_logits(pred["density"], contains_gt)
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
+
+        # explicit broadcast to ensure param consistency across ranks
+        for param in self.parameters():
+            broadcast(param, src=0)
 
     def get_activated_density(
         self, points: Float[Tensor, "*N Di"], density: Float[Tensor, "*N 1"]

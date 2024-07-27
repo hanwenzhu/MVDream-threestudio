@@ -280,8 +280,8 @@ class TetrahedraSDFGrid(BaseExplicitGeometry):
                     self.initial_color.to(points_rand)[closest_vertices],
                     self.initial_color.to(points_rand)
                 ], dim=0)
-                color_pred = F.softmax(self.forward(points)["features"], dim=-1)
-                loss = F.mse_loss(color_gt, color_pred)
+                color_pred = self.forward(points)["features"]
+                loss = F.cross_entropy(color_pred, color_gt)
                 optim.zero_grad()
                 loss.backward()
                 optim.step()
