@@ -139,7 +139,9 @@ class ImplicitVolume(BaseImplicitGeometry):
             contains_gt = mesh.contains_points(points_rand).float()
             pred = self.forward(points)
             loss = F.cross_entropy(pred["features"], color_gt)
-            loss += F.binary_cross_entropy_with_logits(pred["density"], contains_gt)
+            loss += F.binary_cross_entropy_with_logits(
+                pred["raw_density"][:points_rand.shape[0], 0], contains_gt
+            )
             optim.zero_grad()
             loss.backward()
             optim.step()
@@ -196,7 +198,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         raw_density, density = self.get_activated_density(points_unscaled, density)
 
         output = {
-            "density": density,
+            "raw_density": raw_density, "density": density,
         }
 
         if self.cfg.n_feature_dims > 0:
