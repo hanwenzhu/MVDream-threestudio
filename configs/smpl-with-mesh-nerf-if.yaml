@@ -116,7 +116,6 @@ system:
     lambda_opaque: 0.
     lambda_z_variance: 0.
     lambda_intersection: 10.
-    lambda_normal_consistency: 10000.
   optimizer:
     name: AdamW
     args:
