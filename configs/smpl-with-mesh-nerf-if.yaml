@@ -1,4 +1,4 @@
-name: "smpl-with-mesh-sdf-if"
+name: "smpl-with-mesh-nerf-if"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
