@@ -5,6 +5,7 @@ import numpy as np
 from omegaconf import OmegaConf
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import threestudio
 from threestudio.systems.base import BaseLift3DSystem
@@ -112,6 +113,12 @@ class WithMesh(BaseLift3DSystem):
             loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
             self.log("train/loss_sparsity", loss_sparsity)
             loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
+
+            # HACK
+            if "lambda_sparsity_4" in self.cfg.loss:
+                loss_sparsity_4 = F.softplus(loss_sparsity - .4, beta=50.)
+                self.log("train/loss_sparsity_above_.4", loss_sparsity_4)
+                loss += loss_sparsity_4 * self.C(self.cfg.loss.lambda_sparsity_4)
 
             opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
             loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
