@@ -98,7 +98,6 @@ class ImplicitVolume(BaseImplicitGeometry):
 
         assert isinstance(self.cfg.shape_init, str)
         assert self.cfg.shape_init.startswith("mesh:")
-        assert isinstance(self.cfg.shape_init_params, float)
         mesh_path = self.cfg.shape_init[5:]
         if not os.path.exists(mesh_path):
             raise ValueError(f"Mesh file {mesh_path} does not exist.")
@@ -128,10 +127,10 @@ class ImplicitVolume(BaseImplicitGeometry):
                 torch.rand(1000, 3, dtype=torch.float32).to(self.device) * 2.0 - 1.0
             ) * self.cfg.radius
             closest_vertices = torch.linalg.norm(
-                points_rand[:, None, :] - self.initial_vertices.to(points_rand)[None, :, :], dim=2
+                points_rand[:, None, :] - mesh.v_pos.to(points_rand)[None, :, :], dim=2
             ).argmin(dim=1)
             # make points at vertices also close to color
-            points = torch.cat([points_rand, self.initial_vertices.to(points_rand)], dim=0)
+            points = torch.cat([points_rand, mesh.v_pos.to(points_rand)], dim=0)
             # color the mesh accordingly
             color_gt = torch.cat([
                 mesh.v_rgb.to(points_rand)[closest_vertices],
