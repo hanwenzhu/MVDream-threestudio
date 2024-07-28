@@ -94,6 +94,7 @@ class WithMesh(BaseLift3DSystem):
 
     def training_step(self, batch, batch_idx):
         loss = 0.0
+        opacity = None
 
         if not self.cfg.composed_only:
             # loss of individual object
@@ -109,21 +110,8 @@ class WithMesh(BaseLift3DSystem):
                 self.log(f"train/{name}", value)
                 if name.startswith("loss_"):
                     loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
-
-            loss_sparsity = (out["opacity"] ** 2 + 0.01).sqrt().mean()
-            self.log("train/loss_sparsity", loss_sparsity)
-            loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
-
-            # HACK
-            if "lambda_sparsity_4" in self.cfg.loss:
-                loss_sparsity_4 = F.softplus(loss_sparsity - .4, beta=50.)
-                self.log("train/loss_sparsity_above_.4", loss_sparsity_4)
-                loss += loss_sparsity_4 * self.C(self.cfg.loss.lambda_sparsity_4)
-
-            opacity_clamped = out["opacity"].clamp(1.0e-3, 1.0 - 1.0e-3)
-            loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
-            self.log("train/loss_opaque", loss_opaque)
-            loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
+            
+            opacity = out["opacity"]
 
             # loss of individual object using deepfloyd (TODO think of better name)
             prompt_utils = self.composed_individual_prompt_processor()
@@ -161,6 +149,28 @@ class WithMesh(BaseLift3DSystem):
             loss_normal_consistency = out["mesh"].normal_consistency()
             self.log("train/loss_normal_consistency", loss_normal_consistency)
             loss += loss_normal_consistency * self.C(self.cfg.loss["lambda_normal_consistency"])
+
+        if opacity is None:
+            opacity = out["opacity"]  # if not rendering individual, use composed opacity instead
+
+        # Losses based on opacity:
+        # sparsity
+        loss_sparsity = (opacity ** 2 + 0.01).sqrt().mean()
+        self.log("train/loss_sparsity", loss_sparsity)
+        loss += loss_sparsity * self.C(self.cfg.loss.lambda_sparsity)
+
+        # sparsity above a given threshold
+        if "lambda_sparsity_above_threshold" in self.cfg.loss:
+            assert "sparsity_threshold" in self.cfg.loss
+            loss_sparsity_above = F.softplus(loss_sparsity - self.cfg.loss.sparsity_threshold, beta=50.)
+            self.log("train/loss_sparsity_above_threshold", loss_sparsity_above)
+            loss += loss_sparsity_above * self.C(self.cfg.loss.lambda_sparsity_above_threshold)
+
+        # opaqueness (forces 0 or 1)
+        opacity_clamped = opacity.clamp(1.0e-3, 1.0 - 1.0e-3)
+        loss_opaque = binary_cross_entropy(opacity_clamped, opacity_clamped)
+        self.log("train/loss_opaque", loss_opaque)
+        loss += loss_opaque * self.C(self.cfg.loss.lambda_opaque)
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
