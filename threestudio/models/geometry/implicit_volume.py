@@ -14,7 +14,7 @@ from threestudio.models.geometry.base import (
 )
 from threestudio.models.networks import get_encoding, get_mlp
 from threestudio.models.mesh import Mesh
-from threestudio.utils.misc import broadcast, get_device, get_rank
+from threestudio.utils.misc import broadcast, get_device, get_rank, cleanup
 from threestudio.utils.ops import get_activation
 from threestudio.utils.typing import *
 
@@ -149,6 +149,7 @@ class ImplicitVolume(BaseImplicitGeometry):
         # explicit broadcast to ensure param consistency across ranks
         for param in self.parameters():
             broadcast(param, src=0)
+        cleanup()
 
     def get_activated_density(
         self, points: Float[Tensor, "*N Di"], density: Float[Tensor, "*N 1"]

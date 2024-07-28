@@ -52,6 +52,7 @@ system:
     color_activation: sigmoid
     random_aug: true
     share_aug_bg: true
+    eval_color: [1., 1., 1.]
 
   composed_only: true
   use_composed_renderer_for_individual: true
@@ -75,7 +76,7 @@ system:
     ckpt_path: null # path to a pre-downloaded checkpoint file (null for loading from URL)
     guidance_scale: 50.0
     min_step_percent: 0.02
-    max_step_percent: 0.5
+    max_step_percent: 0.7
     recon_loss: true
     recon_std_rescale: 0.5
   
@@ -103,7 +104,7 @@ system:
     weighting_strategy: uniform
     guidance_scale: 20.
     min_step_percent: 0.02
-    max_step_percent: 0.5
+    max_step_percent: 0.7
 
   loggers:
     wandb:
