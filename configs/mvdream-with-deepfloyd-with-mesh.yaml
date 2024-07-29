@@ -110,12 +110,20 @@ system:
     lambda_composed_sds: 0.9
     lambda_composed_individual_sds: 0.05
     lambda_sds: 0.05
-    lambda_orient: 0.
-    lambda_sparsity: 1.
-    lambda_opaque: 0.
-    lambda_z_variance: 0.
+
+    lambda_sparsity: 0.  # not needed with lambda_sparsity_above_threshold
+    sparsity_threshold: .2  # .2-.3 (depends on intended size) for strictly human only
+    lambda_sparsity_above_threshold: 10000.  # 5000. is a softer bound that may also work
+    lambda_mesh_occlusion: 0.  # not needed with lambda_mesh_occlusion_above_threshold
+    mesh_occlusion_threshold: .4  # depends on mesh/interaction
+    # lambda_mesh_occlusion_above_threshold: 10000.  # uncomment if needed
+    lambda_opaque: 0.  # not needed
+
     lambda_intersection: 1.
-    lambda_mesh_occlusion: .1
+
+    lambda_orient: 0.
+    lambda_z_variance: 0.
+
   optimizer:
     name: AdamW
     args:

@@ -116,9 +116,10 @@ class ImplicitVolume(BaseImplicitGeometry):
         optim = torch.optim.Adam(self.parameters(), lr=1e-3)
         from tqdm import tqdm
 
+        threestudio.info(f"Initializing network to given {self.cfg.shape_init}")
         for _ in tqdm(
             range(10000),
-            desc=f"Initializing network to given {self.cfg.shape_init}:",
+            desc=f"Initializing network",
             disable=get_rank() != 0,
         ):
             # (could be faster)
