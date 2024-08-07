@@ -51,6 +51,7 @@ system:
   background:
     color_activation: sigmoid
     random_aug: true
+    random_aug_prob: 1.
     share_aug_bg: true
     eval_color: [1., 1., 1.]
 
