@@ -137,11 +137,15 @@ class ImplicitVolume(BaseImplicitGeometry):
                 mesh.v_rgb.to(points_rand)[closest_vertices],
                 mesh.v_rgb.to(points_rand)
             ], dim=0)
-            contains_gt = mesh.contains_points(points_rand).float()
+            contains_gt = torch.cat([
+                mesh.contains_points(points_rand).float(),
+                # vertices on surface should also have density
+                torch.ones_like(points_rand[:, 0])
+            ], dim=0)
             pred = self.forward(points)
             loss = F.cross_entropy(pred["features"], color_gt)
             loss += F.binary_cross_entropy_with_logits(
-                pred["raw_density"][:points_rand.shape[0], 0], contains_gt
+                pred["raw_density"][:, 0], contains_gt
             )
             optim.zero_grad()
             loss.backward()

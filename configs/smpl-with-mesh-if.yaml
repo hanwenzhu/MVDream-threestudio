@@ -21,7 +21,8 @@ system:
     use_feature_network: false
     fix_vertex_color: false
     fix_location: false
-    smpl_init_from: ???
+    # smpl_init_from: ???
+    vertex_color_file: ./load/smplx/smpl_rgb.npy  # (#vert, 3) array
     smpl_model_path: "smplx/models/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl"
 
   material_type: "no-material"
