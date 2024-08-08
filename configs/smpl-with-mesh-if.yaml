@@ -19,8 +19,8 @@ system:
   geometry_type: "smpl"
   geometry:
     use_feature_network: false
-    fix_vertex_color: false
-    fix_location: false
+    fix_vertex_color: true
+    fix_location: true
     # smpl_init_from: ???
     vertex_color_file: ./load/smplx/smpl_rgb.npy  # (#vert, 3) array
     smpl_model_path: "smplx/models/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl"
@@ -108,9 +108,9 @@ system:
       eps: 1.e-15
     params:
       geometry:
-        lr: 0.0001
+        lr: 0.001
       background:
-        lr: 0.00001
+        lr: 0.0001
 
 trainer:
   max_steps: 10000
