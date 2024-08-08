@@ -53,6 +53,7 @@ class RandomCameraDataModuleConfig:
     light_sample_strategy: str = "dreamfusion"
     batch_uniform_azimuth: bool = True
     progressive_until: int = 0  # progressive ranges for elevation, azimuth, r, fovy
+    relative_radius: bool = False  # from MVDream (random_multiview)
 
 
 class RandomCameraIterableDataset(IterableDataset, Updateable):
@@ -186,12 +187,22 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             )
         azimuth = azimuth_deg * math.pi / 180
 
+        # sample fovs from a uniform distribution bounded by fov_range
+        fovy_deg: Float[Tensor, "B"] = (
+            torch.rand(self.batch_size) * (self.fovy_range[1] - self.fovy_range[0])
+            + self.fovy_range[0]
+        )
+        fovy = fovy_deg * math.pi / 180
+
         # sample distances from a uniform distribution bounded by distance_range
         camera_distances: Float[Tensor, "B"] = (
             torch.rand(self.batch_size)
             * (self.camera_distance_range[1] - self.camera_distance_range[0])
             + self.camera_distance_range[0]
         )
+        if self.cfg.relative_radius:
+            scale = 1 / torch.tan(0.5 * fovy)
+            camera_distances = scale * camera_distances
 
         # convert spherical coordinates to cartesian coordinates
         # right hand coordinate system, x back, y right, z up
@@ -228,13 +239,6 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             torch.randn(self.batch_size, 3) * self.cfg.up_perturb
         )
         up = up + up_perturb
-
-        # sample fovs from a uniform distribution bounded by fov_range
-        fovy_deg: Float[Tensor, "B"] = (
-            torch.rand(self.batch_size) * (self.fovy_range[1] - self.fovy_range[0])
-            + self.fovy_range[0]
-        )
-        fovy = fovy_deg * math.pi / 180
 
         # sample light distance from a uniform distribution bounded by light_distance_range
         light_distances: Float[Tensor, "B"] = (
