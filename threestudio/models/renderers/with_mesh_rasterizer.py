@@ -133,7 +133,7 @@ class WithMeshRasterizer(NVDiffRasterizer):
 
         # check intersection
         smpl_sdf = self.mesh.sdf(smpl_mesh.v_pos)
-        intersection = F.relu(-smpl_sdf)
+        intersection = F.relu(smpl_sdf)
 
         out = {
             "comp_rgb": gb_rgb_aa,

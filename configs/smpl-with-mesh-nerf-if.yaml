@@ -104,7 +104,7 @@ system:
   composed_guidance:
     pretrained_model_name_or_path: "DeepFloyd/IF-I-XL-v1.0"
     weighting_strategy: uniform
-    guidance_scale: 20.
+    guidance_scale: 50.
     min_step_percent: 0.02
     max_step_percent: 0.7
 
