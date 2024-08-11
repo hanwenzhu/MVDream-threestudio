@@ -86,7 +86,7 @@ class WithMesh(BaseLift3DSystem):
         self.composed_guidance = threestudio.find(self.cfg.composed_guidance_type)(
             self.cfg.composed_guidance
         )
-        if hasattr(self.geometry, "initialize_shape"):
+        if hasattr(self.geometry, "initialize_shape") and not self.resumed:
             self.geometry.initialize_shape()
 
     def forward(self, batch: Dict[str, Any]) -> Dict[str, Any]:
