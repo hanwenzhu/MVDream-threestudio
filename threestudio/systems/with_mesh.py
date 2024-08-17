@@ -30,6 +30,8 @@ class WithMesh(BaseLift3DSystem):
 
         composed_guidance_type: str = ""
         composed_guidance: dict = field(default_factory=dict)
+
+        save_sds_grad: bool = False
     
     cfg: Config
 
@@ -129,6 +131,13 @@ class WithMesh(BaseLift3DSystem):
         guidance_out = self.composed_guidance(
             out["comp_rgb"], prompt_utils, **batch, rgb_as_latents=False
         )
+
+        # for debugging
+        if self.cfg.save_sds_grad:
+            self.sds_grad_image = out["comp_rgb"]
+            self.sds_grad_image.retain_grad()
+        else:
+            self.sds_grad_image = None
 
         for name, value in guidance_out.items():
             self.log(f"train/composed_{name}", value)
@@ -307,5 +316,26 @@ class WithMesh(BaseLift3DSystem):
                 save_format="mp4",
                 fps=30,
                 name=f"test-{name}",
+                step=self.true_global_step,
+            )
+    
+    def on_before_optimizer_step(self, optimizer):
+        super().on_before_optimizer_step(optimizer)
+        if self.cfg.save_sds_grad:
+            self.save_image_grid(
+                f"it{self.true_global_step}-sds_grad.png",
+                [
+                    {
+                        "type": "rgb",
+                        "img": self.sds_grad_image.grad,
+                        "kwargs": {"data_format": "HWC"},
+                    },
+                    {
+                        "type": "rgb",
+                        "img": self.sds_grad_image.grad.norm(dim=-1, keepdim=True),
+                        "kwargs": {"data_format": "HWC", "data_range": (0, 1)},
+                    }
+                ],
+                name=f"sds_grad",
                 step=self.true_global_step,
             )
