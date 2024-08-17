@@ -327,12 +327,12 @@ class WithMesh(BaseLift3DSystem):
                 [
                     {
                         "type": "rgb",
-                        "img": self.sds_grad_image.grad,
+                        "img": self.sds_grad_image.grad[0],
                         "kwargs": {"data_format": "HWC"},
                     },
                     {
                         "type": "grayscale",
-                        "img": self.sds_grad_image.grad.norm(dim=-1, keepdim=True),
+                        "img": self.sds_grad_image.grad.norm(dim=-1)[0],
                         "kwargs": {"cmap": None, "data_range": (0, 1)},
                     }
                 ],
