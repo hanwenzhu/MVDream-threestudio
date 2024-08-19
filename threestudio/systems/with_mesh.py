@@ -324,11 +324,16 @@ class WithMesh(BaseLift3DSystem):
         if self.cfg.save_sds_grad:
             grad = self.sds_grad_image.grad[0]
             grad_norm = grad.norm(dim=-1)
-            grad_min = grad_norm.min().item()
+            # grad_min = grad_norm.min().item()
             grad_max = grad_norm.max().item()
             self.save_image_grid(
                 f"it{self.true_global_step}-sds_grad.png",
                 [
+                    {
+                        "type": "rgb",
+                        "img": self.sds_grad_image,
+                        "kwargs": {"data_format": "HWC", "data_range": (0, 1)}
+                    },
                     {
                         "type": "rgb",
                         "img": grad,
